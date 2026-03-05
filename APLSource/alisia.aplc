@@ -3,7 +3,7 @@
     :field private  shared    LF←⎕UCS 10
     :field private shared      CRLF←⎕UCS 13 10
     :field private shared      styles←⍬
-    :field public shared devCmds←'GIT PULL' 'DETRAP' 'RETRAP'
+    :field public shared devCmds←'DETRAP' 'RETRAP'
 
     ∇ h←home
       h←1⊃⎕NPARTS 50 ⎕ATX 1⊃⎕SI
@@ -967,7 +967,7 @@
       :EndIf
     ∇
 
-    ∇ DevAction E;t;cmd1;tags;tmp;linked;mid;prefix;replyTo;StartOfLog;digest_body;digest_html
+    ∇ DevAction E;t;cmd1;mid;prefix;replyTo;StartOfLog
       :Access public
       prefix←'[',cfg.list_name,'] '
       mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
@@ -977,52 +977,6 @@
           ⎕←StartOfLog←∊'DevAction: ',E.(subject,' ',sender,' ',⍕ticks)
           'INFO' 'DEV'Log StartOfLog
           :Select cmd1←⎕C 1⊃t
-          :Case 'git'
-              :If (⎕C 2 #.Word E.subject)≡'pull'
-                  linked←1  ⍝ determine if we were linked or not (so that we can then Link or Import)
-                  tmp←739⌶0
-          ⍝ link.break
-          ⍝ '(all: 1)'⎕se.Link.Break ''
-            ⍝ no, doesn't work as intended. how could we restart and re-create links
-            ⍝ when the ws is filled already?
-            ⍝ also can't do ⎕CLEAR to truly clear the dws, as (even when executed from ⎕SE)
-            ⍝ any fn would stop after the ⎕CLEAR, so we coulden'*t use it to then launch things again.
-            ⍝ seems we'll have to just overwrite the code!
-          ⍝********************
-          ⍝ or maybe we just do LINK.Import
-          ⍝ and launch a new sessinón with same cmdline
-          ⍝and then end the current one!!!
-          ⍝********************
-          ⍝ github download: check is there is a newer tag!
-                  tags←#.Code.GitHub.ListTags #.Config.repo
-                  tags←1 0↓tags                                             ⍝ remove headers
-                  tags←tags[⍸0<≢¨('^v[0-9]+\.[0-9]+\.[0-9]+$'⎕S 0)¨tags[;1];]  ⍝ standard versions only (e.g. no "v0.9.9test")
-                  tags←tags[⍋↑{⊃,/{2⊃⎕VFI ⍵}¨'.'(≠⊆⊢)⍵~'v'}¨tags[;1];]
-                  :Select ×(≢tags)-tags[;1]⍳⊆#.Config.version
-                  :Case 1    ⍝ update!
-                      'INFO' 'DEV'Log'Updating from ',#.config.version,' to ',tags[≢tags;1]
-                  :Case 0    ⍝ current
-                      'INFO' 'DEV'Log'No updates found - ',#.Config.version,' is still the last tag!'
-                      →endSel
-                  :Case ¯1   ⍝ Config.version not found!
-                      'WARN' 'DEV'Log'Config.Version "',#.Config.version,'" not found in tags!'
-                      'WARN' 'DEV'Log⍕tags
-                      →endSel
-                  :EndSelect
-                  #.jarvis.Stop
-                  tmp←tmp,'/',⊃⌽tags[;1]
-                  tmp←2(⎕MKDIR⍠'Unique' 1)tmp
-                  tmp,←'/'
-                  'DBG' 'DEV'Log'Checking out ',⊃⌽tags[;5]
-                  tmp #.Code.GitHub.CheckOut #.Config.repo,(⊂'sha'),tags[≢tags;5]
-                  #.Home(⎕NCOPY⍠('PreserveAttributes' 1)('IfExists' 'Replace'))tmp
-                  'DBG' 'DEV'Log'version=',⎕SH'grep version ',#.Home,'Config/konducata.json5'
-                  2 ⎕NDELETE tmp
-     
-                  E SendLog StartOfLog   ⍝ send log
-                  a←⎕NEW #.APLProcess''(∊' ',⍨¨1↓2 ⎕NQ'.' 'GetCommandLineArgs')
-                  ⎕OFF
-              :EndIf
           :Case 'detrap'
               ⎕SIGNAL 802
           :Case 'retrap'
