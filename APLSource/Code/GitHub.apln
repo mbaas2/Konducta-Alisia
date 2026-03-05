@@ -1,0 +1,666 @@
+:namespace GitHub
+    DefaultOrg←'Dyalog'
+    HomeDir←'./'
+    gat←''          ⍝ GitHub API token - see Init
+    HttpCommand←''  ⍝ will be overwritten with the class by Init (or a loading fns, if we should use its HttpCommand as we do with CITA)
+
+    :section Public fns
+    ∇ {z}←path CheckOut org_repo_branch;org;repo;branch;url;d;c;sha;fls;f
+     ⍝ or URL
+     ⍝ very quick & pragmatic hack to workaround Jenkins not being able to Checkout
+     ⍝ on all platforms - despite it being cross-platform.
+     ⍝ ⍵:    org repo branch
+     ⍝  or:  org repo branch 'pulls' (# of PR numeric or text)  to fetch a PR for testing
+     ⍝  or:  org repo branch 'sha'   (sha of a commit)
+      z←0   ⍝ 0=all is well, n o errors
+      :Trap 0
+          :If 'http'≡4↑org_repo_branch  ⍝ alternatively accept URLs as well ;)
+          :Else
+              :If 1=≢⊆org_repo_branch
+                  org_repo_branch←(⊂DefaultOrg),⊆org_repo_branch
+              :EndIf
+              :If 3<≢org_repo_branch
+                  :If 'pulls'≡3⊃org_repo_branch  ⍝ org repo branch "pulls" {# of PR}
+                      c←'merge_commit_sha'GetPagedResults'https://api.github.com/repos/',(1⊃org_repo_branch),'/',(2⊃org_repo_branch),'/pulls/',⍕4⊃org_repo_branch
+                  :ElseIf 'sha'≡3⊃org_repo_branch
+                      c←2 1⍴org_repo_branch[4]  ⍝ sha is passed in argument...
+                  :EndIf
+              :Else
+                  c←'sha'ListCommits org_repo_branch
+              :EndIf
+              sha←⊃c[2;]
+⍝          :If 2=≢org_repo_branch
+⍝              url←'https://api.github.com/orgs/',org,'/repos'
+⍝              d←'default_branch'GetPagedResults url
+⍝              org_repo_branch,←⊃d[2;]
+⍝          :EndIf
+              fls←'tree.path' 'tree.type' 'tree.url' 'tree.sha'ListFiles(2↑org_repo_branch),⊂sha
+              :For f :In 1↓↓fls
+                  :Select 2⊃f
+                  :Case 'tree'  ⍝ tree.type=tree => create subfolder
+                      3 ⎕MKDIR path,1⊃f
+                  :Case 'blob'
+                      (path,1⊃f)RetrieveBlob 3⊃f
+                  :Case 'commit'
+                      (path,(1⊃f),'/')CheckOut org_repo_branch[1],(⎕NPARTS⊃f)[2],f[4]  ⍝TODO: must be generalized to deal with foreign deps as well
+                  :EndSelect
+              :EndFor
+          :EndIf
+      :Else
+          z←1(⎕←(⎕JSON⍠'Compact' 0)⎕DMX)
+      :EndTrap
+    ∇
+
+    ∇ R←GetBranchOfCommit org_repo_sha;url;res;z;br;name;repo;sha;org
+    ⍝ [org] repo sha
+      (org repo sha)←¯3↑(⊂'Dyalog'),org_repo_sha
+      url←'https://api.github.com/repos/',org,'/',repo,'/branches'
+      br←'name'GetPagedResults url
+      :For name :In 1↓br[;1]
+          url←'https://api.github.com/repos/',org,'/',repo,'/commits/',sha,'/branches-where-head'
+          res←1 0↓'name' 'commit.sha'GetPagedResults url
+          :If 0<≢res
+              z←res[;2]⍳⊂sha
+              R←z⊃res[;1]
+          :EndIf
+      :EndFor
+    ∇
+
+    ∇ R←{fields}ListRepos org;url
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf   ⍝ 'id' 'name' 'private' 'description' 'trees_url' 'ssh_url' was prior default
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      url←'https://api.github.com/orgs/',org,'/repos'
+      R←fields GetPagedResults url
+    ∇
+
+    ∇ R←{fields}ListCommits org_repo;url;org;repo
+      (org repo)←¯2↑(⊂DefaultOrg),⊆2↑org_repo
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/commits',(0<≢∊2↓org_repo)/'/',∊2↓org_repo
+      R←fields GetPagedResults url
+    ∇
+⍝ maybe we need a more general ListSomething fn?
+
+    ∇ R←{fields}ListBranches org_repo;url;org;repo
+      (org repo)←¯2↑(⊂DefaultOrg),⊆org_repo
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/branches'
+      R←fields GetPagedResults url
+    ∇
+
+    ∇ R←{fields}ListFiles org_repo_sha;url;org;repo;sha;opts
+      (org repo sha)←¯3↑(⊂DefaultOrg),⊆org_repo_sha
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/git/trees/',sha
+      opts←⎕NS'' ⋄ opts.fields←fields ⋄ opts.params←1 2⍴'recursive' '0'  ⍝ MB,220930: recursive 0 to include subfolders!
+      R←opts GetPagedResults url
+    ∇
+
+    ∇ R←{fields}ListTags org_repo;url;org;repo;sha
+      (org repo)←¯2↑(⊂DefaultOrg),⊆org_repo
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/tags'
+      R←fields GetPagedResults url
+    ∇
+
+    ∇ R←{fields}ListWebhooks org_repo;url;org;repo;sha
+      (org repo)←¯2↑(⊂DefaultOrg),⊆org_repo
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/hooks'
+      :Trap 11
+          R←fields GetPagedResults url
+      :Else
+          R←(0,≢fields)⍴''
+      :EndTrap
+    ∇
+
+    ∇ R←{fields}ListReleases org_repo;url;org;repo;sha
+      (org repo)←¯2↑(⊂DefaultOrg),⊆org_repo
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/releases'
+      R←fields GetPagedResults url
+    ∇
+
+    ∇ R←{fields}GetLatestRelease org_repo
+      (org repo)←¯2↑(⊂DefaultOrg),⊆org_repo
+      :If 0=⎕NC'fields' ⋄ fields←⍬ ⋄ :EndIf
+      :If 0=≢org ⋄ org←DefaultOrg ⋄ :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/releases/latest'
+      R←fields GetPagedResults url
+    ∇
+    ∇ R←d SetStatus org_repo_sha;org;repo;sha;url;h;res
+      (org repo sha)←¯3↑(⊂DefaultOrg),⊆org_repo_sha
+      url←'https://api.github.com/repos/',org,'/',repo,'/statuses/',sha
+      :If 326=⎕DR d
+          d←1 ⎕JSON d
+      :EndIf
+      h←_gethc url
+      h.Command←'post'
+      h.Params←d
+      h.Headers⍪←'Content-Type' 'application/json'
+      R←h.Run
+    ∇
+
+    ∇ R←RegisterWebHook org_repo_details;list;body;h;u;org;repo;jbody;url
+     ⍝ registers a webhook for a repo
+     ⍝ "details" contains the "body"-elements of this call according to ( https://docs.github.com/en/rest/webhooks/repos?apiVersion=2022-11-28#create-a-repository-webhook--parameters )
+     ⍝ (can also be a namespace)
+      (org repo body)←¯3↑(⊂DefaultOrg),⊆org_repo_details  ⍝ "details" makes more sense in the argument, "body" is better in the context of the GitHub API
+      url←'https://api.github.com/repos/',org,'/',repo,'/hooks'
+      :If 326=⎕DR body
+          body←1 ⎕JSON body
+      :EndIf
+      jbody←0 ⎕JSON body
+      :If 9≠jbody.⎕NC'config'                         ⍝ a config element is mandataory
+      :OrIf 2≠jbody.config.⎕NC'url'                   ⍝ as is the URL
+          'No config.url found in details'⎕SIGNAL 11  ⍝ err if missing!
+      :EndIf
+      ⍝ first check if a webhook is already pointing to our URL
+      list←'active' 'config' 'id'ListWebhooks org repo
+      :If 1<≢list                                     ⍝ if repo has webhooks
+      :AndIf (⊆(⎕JSON body).config.url)∊(1↓list)[;2].url
+        ⍝ yep, we found one
+          i←1+(1↓list[;2]).url⍳⊆(⎕JSON body).config.url
+          id←3⊃list[i;]
+        ⍝ change URL so that we update the existing hook (instead of trying to create a new one - which would fail)
+          u←'https://api.github.com/repos/',org,'/',repo,'/hooks/',⍕id
+          h←_gethc u
+          h.Command←'delete'
+          h.Headers⍪←'Accept' 'application/vnd.github+json'
+          R←h.Run
+          :If R.rc≠0
+              ⎕←⍕R
+              (⎕←'Problem deleting old webhook')⎕SIGNAL 11
+          :EndIf
+      :EndIf
+      h←_gethc url
+      h.Command←'post'
+      h.Params←body
+      h.Headers⍪←'Content-Type' 'application/vnd.github+json'
+      R←h.Run
+    ∇
+
+    ∇ {(R msg)}←{target}RetrieveFile url;h;res;dir;tie;noTarget
+     ⍝ get specified file and save it as ⍺ (return content as "msg" if target is missing)
+     ⍝ R indicates success (=0) or failure (=1)
+     ⍝ msg either has the fully qualified filename (or content) or the error-msg.
+      R←1
+      noTarget←1
+      h←_gethc url('Accept' 'application/octet-stream,*/*')
+      :If 0=(res←h.Run).rc
+          :If 0=⎕NC'target'   ⍝ create temporary file (as we have to deal with various conversions below...this seemed the easiest way to go...)
+              target←(739⌶0),'/',⎕A[?¨32⍴26],'.tmptxt'
+              noTarget←1
+          :Else ⋄ noTarget←0
+          :EndIf
+          msg←target←∊1 ⎕NPARTS target
+          :If ~⎕NEXISTS dir←1⊃⎕NPARTS target
+              3 ⎕MKDIR dir
+          :EndIf
+          1 ⎕NDELETE target
+     
+          :If ('Content-Type'{⍵[⍵[;1]⍳⊂⍺;2]}res.Headers)∊'application/octet-stream' 'application/zip'
+              tie←target ⎕NCREATE 0
+              res.Data ⎕NAPPEND tie   ⍝ octets are just written as bytes ;)
+              ⎕NUNTIE tie
+              R←0
+          :Else                       ⍝ anything else will be ⎕NPUT
+              ⍝ ⎕←'Content-Type'{⍵[⍵[;1]⍳⊂⍺;]}res.Headers
+              :If 2=⎕NC'target'
+                  (⊂res.Data)⎕NPUT target
+                  R←0
+              :Else
+                  R←0
+                  msg←res.Data
+              :EndIf
+          :EndIf
+          :If noTarget         ⍝ if we didn't have a target
+              msg←1⊃⎕NGET target   ⍝ get content
+              1 ⎕NDELETE target     ⍝ and delete tmp file
+          :EndIf
+      :EndIf
+      :If 0≠res.rc ⋄ msg←'Error: rc≠0!',(⎕UCS 13),⍕res ⋄ :EndIf
+    ∇
+
+    ∇ {(R msg)}←{target}RetrieveBlob url;h;res;dir;tie;t;j;noTarget;org;repo
+  ⍝ url is either a full blob url or [org] repo sha
+  ⍝ get specified file and save it as ⍺
+  ⍝ R indicates success (=0) or failure (=1)
+  ⍝ msg either has the fully qualified filename or the error-msg.
+  ⍝ if target is not given, return file content in msg
+      R←1
+      noTarget←0
+      :If 'http'≢4↑url
+          :If 2=≢url
+              url←(⊂DefaultOrg),url
+          :EndIf
+          url←'https://api.github.com/repos/',(1⊃url),'/',(2⊃url),'/git/blobs/',3⊃url
+      :EndIf
+      h←_gethc(url)('Accept' 'application/vnd.github.v3+json')
+      :If 0=(res←h.Run).rc
+      :AndIf 200=res.HttpStatus
+          :If 0=⎕NC'target'   ⍝ create temporary file (as we have to deal with various conversions below...this seemed the easiest way to go...)
+              target←(739⌶0),'/',⎕A[?¨32⍴26],'.tmptxt'
+              noTarget←1
+          :EndIf
+          msg←target←∊1 ⎕NPARTS target
+          :If ~⎕NEXISTS dir←1⊃⎕NPARTS target
+              3 ⎕MKDIR dir
+          :EndIf
+          1 ⎕NDELETE target
+          :If 'application/octet-stream'≡'Content-Type'{2⊃⍵[⍵[;1]⍳⊂⍺;]}res.Headers
+              tie←target ⎕NCREATE 0
+              res.Data ⎕NAPPEND tie   ⍝ octets are just written as bytes ;)
+              ⎕NUNTIE tie
+              R←0
+          :Else                       ⍝ anything else will be ⎕NPUT
+              :If '{}'≡res.Data[1,≢res.Data]
+                  j←0 ⎕JSON res.Data
+                  :If 2=⎕NC'j.encoding'
+                  :AndIf 'base64'≡j.encoding
+                      ⍝ (HttpCommand.Base64Decode j.content)⎕NPUT target
+                      ⍝ see email MB from July 9th, 2021
+                      1 ⎕NDELETE target
+                      t←target ⎕NCREATE 0
+                      (⎕UCS base64 j.content)⎕NAPPEND t
+                      ⎕NUNTIE t
+                  :Else
+                      ⎕←1(⎕JSON⍠'Compact' 0)j
+                      ∘∘∘⍝ found no "encoding" in j
+                  :EndIf
+              :Else
+                  (⊂res.Data)⎕NPUT target
+              :EndIf
+              R←0
+          :EndIf
+          :If noTarget         ⍝ if we didn't have a target
+              msg←1⊃⎕NGET target   ⍝ get content
+              1 ⎕NDELETE target     ⍝ and delete tmp file
+          :EndIf
+      :EndIf
+      :If 0≠R←res.rc ⋄ msg←'Error: rc≠0!',(⎕UCS 13),⍕res ⋄ :EndIf
+    ∇
+
+    ∇ R←Get url
+      :Access public
+      h←_gethc url
+      R←h.Run
+    ∇
+
+    ∇ R←{opts}GetPagedResults url;h;j;lnk;res;z;data;x;fields;Get;Params;d;ns;nam;f
+    ⍝ objects can be retrieved by specifying objname.field, i.e. "commit.author.date"
+      fields←'' ⋄ Params←⍬
+      Get←{2 6 11::2⊃⍵ ⋄ ⍺⍎1⊃⍵}  ⍝ (ns or var)Get (param dflt)  - if it's a var or undefined, return dflt - otherwise its value
+      :If 0≠⎕NC'opts'
+          Params←opts Get'params'⍬
+          fields←opts Get'fields'({2=⎕NC ⍵:⍎⍵ ⋄ ''}'opts')
+      :EndIf
+      h←Params _gethc url
+      z←0
+      :While 0=(res←h.Run).rc
+          j←res.Data
+          :If res.HttpStatus≠200
+              res.⎕EX'PeerCert' 'GetHeader'  ⍝ interfers with ⎕JSON res...
+              :Trap 0
+                  msg←(⎕JSON⍠('Compact' 0)('HighRank' 'Split'))res
+              :Else
+                  msg←,(↑res{⍵,' : ',,⍺⍎⍵}¨res.⎕NL ¯2),⎕ucs 10
+              :EndTrap
+              msg,←⍕,res.Headers,⎕ucs 10
+              msg,←⍕{2 6::'' ⋄ ⍵.message}j
+              ⎕SIGNAL⊂('EN' 11)('EM' 'Error: HttpStatus≠0!')('Message' msg)
+          :EndIf
+          :If j≡⍬
+          :OrIf j≡'[]'
+              :If 0=⎕NC'R'
+                  R←(0,⍴fields)⍴0
+              :EndIf
+              →0
+          :ElseIf 2=⎕NC'j'
+              j←0 ⎕JSON j
+          :EndIf   ⍝ exit early if empty result
+          :If 0=≢fields
+              fields←⍬
+              nl←{⍝ traverse namespaces and collect all names (with the parent ns prefixed so that ALL fields are returned)
+     
+ ⍝ ⍵
+ ⍝ ⍺: path to current ns (excluding its name)
+ ⍝ ⍵: (name of ns)(ns)  ⍝ if ∇ call
+ ⍝ ⍵:              ns   ⍝ intial call
+     
+                  w←{0=≢⍵:⍬ ⍬ ⋄ 0=≢1⊃,⍵:⍬ ⍬ ⋄ 2⍴¯2↑(⊂''),⍵}⍵
+                  (nl2 nl9)←(⊃2⊃w).⎕NL¨-2 9
+                  ⍺←''
+                  a←⍺,((×≢⍺)⍴'.'),(1⊃w)
+                  r←(⊂a,((0<≢a)∧'.'≠⊃⌽a)⍴'.'),¨nl2
+     
+                  0<≢nl9:r,(⊂a)∇¨↓nl9,[1.5]w[2]⍎¨nl9
+                  r
+              }1⊃,j
+              fields←⍬
+              {}({fields,←⊂⍵}Ö 1)nl
+          :Else
+              fields←⊆fields
+          :EndIf
+          :If 2>≡j
+              :If '.'∊∊fields  ⍝ we're dotting into namespaces: that could be tricky because a single missing value can ruin the entire var!
+          ⍝ so let's ensure we don't have any of those...
+                  :For f :In (∨/¨fields='.')/fields
+                      d←⌈/⍸f='.'
+⍝                      ns←j⍎(d-1)↑f
+⍝↑↑↑↑↑ DOMAIN ERROR !!!
+                      ns←⍎'j.',(d-1)↑f
+                      nam←d↓f
+                      :For n :In ns
+                          :If 0=n.⎕NC nam
+                              n⍎nam,'←'''''
+                          :EndIf
+                      :EndFor
+                  :EndFor
+              :EndIf
+              :If 1=≢j
+                  x←j{6::'' ⋄ ⍺⍎⍵}¨fields
+              :Else
+                  x←(,j){⍺{6::'' ⋄ ⍺⍎⍵}¨⍵}¨⊂fields
+              :EndIf
+              :If 1=≢j
+                  :If 3=≡x
+                      data←⍉↑x
+                  :Else
+                      data←,[0.5]x
+                  :EndIf
+              :Else
+⍝                  :If 3=≡x
+                  data←↑x
+⍝                  :Else
+⍝                      data←,[1.5]x
+⍝                  :EndIf
+              :EndIf
+          :Else
+              data←↑j{⍺{6::⎕NULL ⋄ ⍺⍎⍵}¨,⍵}¨⊂fields
+          :EndIf
+⍝          :If (⊂'commit')∊data
+⍝              ∘∘∘
+⍝          :EndIf
+          data←(2↑(⍴data),1)⍴data   ⍝ ensure it is a matrix
+          :If 0=⎕NC'R'
+              R←fields⍪data
+          :Else
+              R⍪←data
+          :EndIf
+          :If 0<≢lnk←⊃res.Headers{3::⊂'' ⋄ ⍺[⍺[;1]⍳⊂⍵;2]}'Link'  ⍝ if we find a "Link"-header, we need to page...
+              lnk←','split lnk
+              :If ∨/∊z←∨/¨'rel="next"'∘⍷¨lnk
+                  h.URL←⊃('<([^>]*)>.*'⎕S'\1')(⍸z)⊃lnk
+              :EndIf
+          :Else
+              z←0
+          :EndIf
+      :Until ~1∊z
+      :If 0≠res.rc ⋄ ('Error: rc≠0!',(⎕UCS 13),⍕res)⎕SIGNAL 11 ⋄ :EndIf
+    ∇
+
+    ∇ h←{Params}_gethc url_headers;i;url;headers;v;n
+      :If 1≠≡url_headers
+          (url headers)←url_headers
+          headers←((0.5×≢,headers),2)⍴headers
+      :Else
+          url←url_headers
+          headers←0 2⍴''
+      :EndIf
+      :If 0=≢gat
+          Init
+      :EndIf
+      h←⎕NEW HttpCommand
+      h.Headers←↑('Authorization'('token ',gat))('Accept' 'application/vnd.github.v3.raw ')
+      :For (n v) :In ↓headers
+          i←h.Headers[;1]⍳⊂n
+          :If i>≢h.Headers
+              h.Headers⍪←n v
+          :Else
+              h.Headers[i;2]←⊂v
+          :EndIf
+      :EndFor
+      h.URL←url
+      :If 2=⎕NC'Params' ⋄ h.Params←Params ⋄ :EndIf
+    ∇
+
+    ∇ R←lst SortListBy field_asc;sort;s;field;asc;val
+    ⍝ sort a list by one and one field only in ascending or descending order (if asc=0 or elided)
+      (field asc)←2↑(⊆field_asc),0
+      val←1↓lst[;lst[1;]⍳⊂field]  ⍝ values of sort field
+      sort←'⍋⍒'[2-asc]          ⍝ desired sort
+      s←⍎sort,'val'              ⍝ do it
+      R←lst[1,1+s;]              ⍝ assign sorted list, keeping coltitles on top
+    ∇
+
+    ∇ file Unzip to
+       ⍝ not sure this belongs into a GitHub-ns - but it's convenient to have it here ;)
+      :Select ⎕C 3↑1⊃'.'⎕WG'aplversion'
+      :Case 'win'
+          {}⎕CMD'tar -xf ',file,' -C ',to  ⍝ abrudz!
+      :CaseList 'lin' 'mac'
+          {}⎕SH'unzip ',file,' -d ',to
+      :EndSelect
+    ∇
+
+
+    ∇ ns←{sha}HasCITA org_repo_OR_URL;org;repo;sha;commits;files;upts;res;offset
+       ⍝ checks if given repo has a CITA.json-file and returns namespace with these vars:
+       ⍝ rc=boolean flag if CITA.json[5] found or not
+       ⍝ url=url of the file or blob
+       ⍝ content=file content of CITA.json[5]
+      ns←⎕NS''
+      ns.(rc url content)←0 '' ''
+      :If 1=≡org_repo_OR_URL
+      :AndIf 'http'≡⍥⎕C 4↑org_repo_OR_URL
+          offset←∨/'api.github.com'⍷org_repo_OR_URL
+      ⍝ → api-URLs seems to have one more level, eg:
+      ⍝       https://api.github.com/repos/dyalog/link/pulls/252
+      ⍝       https://github.com/mbaas2/CITA/pull/2
+     
+          upts←'/'split org_repo_OR_URL  ⍝ http://github.com/Dyalog/CITA/
+          (org repo)←upts[offset+3 4]
+          :If (4+offset)<≢upts
+              :Select ⎕C(5+offset)⊃upts
+              :CaseList 'pull' 'pulls'
+                  sha←'merge_commit_sha'GetPagedResults'https://api.github.com/repos/',org,'/',repo,'/pulls/',(offset+6)⊃upts
+                  sha←2⊃,sha
+              :CaseList 'commit' 'commits'
+                  sha←(offset+6)⊃upts
+              :CaseList 'tree' 'branches'
+                  sha←'commit.sha'GetPagedResults'https://api.github.com/repos/',org,'/',repo,'/branches/',(offset+6)⊃upts
+                  sha←2⊃,sha
+              :EndSelect
+              ('Can not process selection "',((5+offset)⊃upts),'"')⎕SIGNAL(0=⎕NC'sha')/11
+          :EndIf
+      :Else
+          (org repo)←¯2↑(⊂DefaultOrg),⊆org_repo_OR_URL
+      :EndIf
+      :If 0=⎕NC'sha'
+      :OrIf 0=≢sha
+          commits←'sha'ListCommits org repo
+          sha←1⊃commits[2;]  ⍝ find last commit
+      :EndIf
+      files←'tree.path' 'tree.url' 'tree.type' 'tree.sha'ListFiles org repo sha
+      ns.rc←∨/z←('cita.json' 'cita.json5')∊⎕C files[;1]
+      :If ns.rc
+          ns.url←(i←⍸1⊃¨(⊂'cita.json',(z≡0 1)/'5')⍷¨⎕C files[;1])⊃files[;2]  ⍝ 1⊃ instead of ∨/, as we're looking for specific files in root...
+          :If 'blob'≡⊃files[i;3]  ⍝ usually we get blob url
+              res←RetrieveBlob org repo(2⊃⎕NPARTS⊃files[i;2])
+          :Else
+              res←RetrieveFile⊃files[i;2]
+          :EndIf
+          :If 0=⊃res
+              ns.content←2⊃res
+          :Else
+              ns.rc←0    ⍝ err is we had problems retrieving file
+          :EndIf
+      :EndIf
+    ∇
+
+
+    ∇ (rc filenames)←path GetFilesFromSHA org_repo_sha;x;url;sha;rec;f;o;p;r;org;repo;commits;rec;gitmodules
+      rc←0 ⋄ filenames←⍬
+      path,←(~∨/'\/'∊¯1↑path)/'/'  ⍝ ensure path ends with /
+      :If ⎕NEXISTS path ⋄ 3 ⎕MKDIR path ⋄ :EndIf
+      (org repo)←¯2↑(⊂DefaultOrg),{(2⌊≢⍵)↑⍵}⊆org_repo_sha
+      :If 2=⍴org_repo_sha
+          commits←'sha'ListCommits org repo
+          sha←1⊃commits[2;]  ⍝ find last commit
+      :Else
+          sha←3⊃org_repo_sha
+      :EndIf
+      url←'https://api.github.com/repos/',org,'/',repo,'/git/trees/',sha
+      x←(mns('params'('recursive' '0'))('fields'('tree.path' 'tree.url' 'tree.type' 'tree.sha')))GetPagedResults url
+    ⍝   ⎕←'url=',url
+    ⍝   ⎕←'⍴x=',⍴x
+    ⍝   ⎕←'≡x=',≡x
+    ⍝   ∘∘∘
+      :If 0>≡x
+          x←1↓↓⍉↑x[2;]
+      :Else
+          x←1↓↓x
+      :EndIf
+      :For rec :In x
+ ⍝ data←HttpCommand.Get 2⊃rec
+          :Select 3⊃rec
+          :Case 'tree'
+              3 ⎕MKDIR path,1⊃rec
+          :Case 'blob'
+              :If 0≠⊃f←(path,1⊃rec)RetrieveBlob org repo(4⊃rec)
+                  ⎕←f
+                  ∘∘∘  ⍝ something went wrong - no idea why etc. need to diagnose when it happens to understand what to do!
+              :Else
+                  filenames,←f[2]
+              :EndIf
+     
+          :Case 'commit'
+              :If 0=⎕NC'gitmodules'
+                  gitmodules←1⊃⎕NGET(path,'.gitmodules')1    ⍝ must have been retrieved already...
+              :EndIf
+              :If (≢gitmodules)≥m←(gitmodules⍳⊂'[submodule "',(1⊃rec),'"]')
+                  n←⍸((⍳≢gitmodules)>m){i←⍺⍳1 ⋄ ⍺[⍳i-1],∧\⊃∧/(i-1)↓¨⍺ ⍵}'['≠⊃¨gitmodules
+                  p←∊('\s*url\s*=\s*(.*)$'⎕S'\1')gitmodules[n]
+                  (o r)←¯2↑'/'(≠⊆⊢)p
+              :Else
+                  ∘∘∘⍝could not find submodule!
+              :EndIf
+              res←path GetFilesFromSHA o r(4⊃rec)
+              :If 0≠⊃res
+                  rc←⊃res
+                  filenames←'Error retrieving content for ',o,' ',r,' ',4⊃rec
+                  →0
+              :EndIf
+              filenames,←2⊃res
+          :Else
+              :If 0≠⊃f←(path,1⊃rec)RetrieveFile 2⊃rec
+                  ⎕←f
+                  ∘∘∘  ⍝ something went wrong - no idea why etc. need to diagnose when it happens to understand what to do!
+              :Else
+                  filenames,←f[2]
+              :EndIf
+          :EndSelect
+      :EndFor
+    ∇
+
+    :endsection
+
+
+    :section InternalTools
+
+    ∇ Init;t
+      ⍝:If 0=≢gat←2 ⎕NQ'.' 'GetEnvironment' 'GITHUB_API_TOKEN'   ⍝ preferred approach to pass API Token is via EnvVar, CmdLine or .dcfg
+      :If 0=≢gat←1⊃160⌶'GITHUB_API_TOKEN'
+          ⎕←'Could not find envvar "GITHUB_API_TOKEN" - please make sure it is set (in env or .dcfg) before using this function!'
+          ⎕SIGNAL 11
+      :EndIf
+      :If 0<≢t←50 ⎕ATX 1⊃⎕SI
+          HomeDir←1⊃⎕NPARTS 4⊃t
+      :ElseIf 0<≢t←{6::'' ⋄ SALT_Data.SourceFile}0
+          HomeDir←1⊃⎕NPARTS t
+      :EndIf
+      :If HttpCommand≡''
+          ⎕EX'HttpCommand'
+          ⎕SE.SALT.Load'[DYALOG]Library/Conga/HttpCommand'
+          ⎕←'GitHub.apln: loaded [DYALOG]Library/Conga/HttpCommand'
+      :Else
+          ⍝⎕←'GitHub.apln: using existing ref ',(⍕HttpCommand),' that has Conga from ',HttpCommand.CongaPath
+          ⍝⎕←'===Files:'
+          ⍝⎕←⊃0(⎕NINFO ⍠ 1)HttpCommand.CongaPath,'*'
+          ⍝⎕←'==='
+      :EndIf
+    ∇
+
+    split←(≠⊆⊢)
+
+
+ ⍝ from dfns:
+      mns←{                                         ⍝ Make NS from association list ⍵.
+          ⍺←⎕NS''                                   ⍝ default new space.
+          0=⍴,⍵:⍺                                   ⍝ list exhausted: finished.
+          name class value←{(1↑⍵),¯2↑2,1↓⍵}⎕IO⊃,⊆⍵  ⍝ first triple.
+          class=2:⍺ ∇ 1↓⍵⊣name ⍺.{⍎⍺,'←⍵'}value     ⍝ var: assign.
+          class∊3 4:⍺ ∇ 1↓⍵⊣⍺.⎕FX value             ⍝ fn or op: fix.
+          class=9:⍺ ∇ 1↓⍵⊣name ∇ ⍺.{                ⍝ space: recursively process,
+              (⍎⍺,'←⎕NS ⍬')⍺⍺ ⍵                     ⍝   in new sub-space,
+          }value                                    ⍝   the sub-list.
+          'Eh?'⎕SIGNAL 11                           ⍝ unrecognised class: abort.
+      }
+
+      base64←{⎕IO ⎕ML←0 1              ⍝ from dfns workspace - Base64 encoding and decoding as used in MIME.
+          chars←'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          bits←{,⍉(⍺⍴2)⊤⍵}             ⍝ encode each element of ⍵ in ⍺ bits, and catenate them all together
+          part←{((⍴⍵)⍴⍺↑1)⊂⍵}          ⍝ partition ⍵ into chunks of length ⍺
+          0=2|⎕DR ⍵:2∘⊥∘(8∘↑)¨8 part{(-8|⍴⍵)↓⍵}6 bits{(⍵≠64)/⍵}chars⍳⍵  ⍝ decode a string into octets
+          four←{                       ⍝ use 4 characters to encode either
+              8=⍴⍵:'=='∇ ⍵,0 0 0 0     ⍝   1,
+              16=⍴⍵:'='∇ ⍵,0 0         ⍝   2
+              chars[2∘⊥¨6 part ⍵],⍺    ⍝   or 3 octets of input
+          }
+          cats←⊃∘(,/)∘((⊂'')∘,)        ⍝ catenate zero or more strings
+          cats''∘four¨24 part 8 bits ⍵
+      }
+
+      Ö←{ ⍝ ⍥ ⍝ also depth (from https://github.com/abrudz/dyalog_vision/blob/main/CircleDiaeresis.aplo )
+          0::⎕SIGNAL⊂⎕DMX.(('EN'EN)('EM'EM)('Message'(OSError{⍵,2⌽(×≢⊃⍬⍴2⌽⍺,⊂'')/'") ("',⊃⍬⍴2⌽⍺}Message)))
+          ncs←⎕NC↑'⍺' '⍵⍵'
+          0 3≡ncs:⍺⍺ ⍵⍵ ⍵       ⍝   f⍥g Y
+          2 3≡ncs:⍺ ⍺⍺⍥⍵⍵ ⍵     ⍝ X f⍥g Y
+     
+          1<≢⍴⍵⍵:⎕SIGNAL 4      ⍝ non-vec/scal: RANK
+          1≠1 4⍸≢⍵⍵:⎕SIGNAL 5   ⍝ not 1...3 elements: LENGTH
+          (c←⎕NS ⍬).⎕CT←1E¯14   ⍝ tolerant space
+          c.≢∘⌊⍨⍵⍵:⎕SIGNAL 11   ⍝ not ints: DOMAIN
+     
+          0∊⎕NC'⍺':0⊢∘⍺⍺ ∇∇ ⍵⍵⊢⍵ ⍝ monadic: placeholder left arg
+     
+          ⍺←{⍵ ⋄ ⍺⍺}            ⍝ monadic: pass-thorugh
+          a←⍺                   ⍝ [17941]
+          k←⌽3⍴⌽⍵⍵              ⍝ r → r r r    q r → r q r    p q r → p q r
+          n←k c.<0
+          d←|≡¨3⍴⍵ ⍺ ⍵ ⍵
+          (n/k)+←n/d
+          k⌊←d
+     
+          b←1↓k<d
+          b∧←0≠1↓d ⍝ bottomed out
+          r←⍵⍵<0
+          ww←r+⍵⍵
+          ww+←(⌈/d)×r∧0=ww
+          S←⍺⍺ ∇∇ ww
+          c.⍱/b:⍺ ⍺⍺ ⍵
+          c.</b:⍺∘S¨⍵
+          c.>/b:S∘⍵¨⍺
+          c.∧/b:⍺ S¨⍵
+      }
+
+
+    :endsection
+:endnamespace

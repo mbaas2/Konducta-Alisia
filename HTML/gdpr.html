@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy – APL Germany Mailing List</title>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: #222;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+    h1 { font-size: 1.6rem; border-bottom: 2px solid #555; padding-bottom: .4rem; margin-top: 2.5rem; }
+    h2 { font-size: 1.2rem; margin-top: 2rem; color: #333; }
+    h3 { font-size: 1rem; margin-top: 1.5rem; color: #444; }
+    code {
+      font-family: 'Lucida Console', Monaco, monospace;
+      background: #f4f4f4;
+      padding: .1em .4em;
+      border-radius: 3px;
+      font-size: .9em;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: .5rem .8rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eee; font-weight: bold; }
+    .cmd {
+      display: inline-block;
+      background: #e8f0fe;
+      border: 1px solid #aac;
+      border-radius: 4px;
+      padding: .15em .6em;
+      font-family: 'Lucida Console', Monaco, monospace;
+      font-size: .9em;
+    }
+    .note {
+      background: #fffbe6;
+      border-left: 4px solid #f0c040;
+      padding: .6rem 1rem;
+      margin: 1rem 0;
+      font-size: .95rem;
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: .85rem;
+      color: #777;
+      border-top: 1px solid #ddd;
+      padding-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Privacy Policy</h1>
+<p>
+  This privacy policy applies to the email mailing list of <strong>APL Germany e.&nbsp;V.</strong>,
+  operated through the automated list service <em>Alisia</em>.
+  It informs you about what personal data is collected, for what purpose,
+  how long it is stored, and what rights you have.
+</p>
+<p>
+  The legal basis is the <strong>EU General Data Protection Regulation (GDPR)</strong> and the
+  German Federal Data Protection Act (BDSG).
+</p>
+
+<h2>1. Controller</h2>
+<p>
+  The controller within the meaning of the GDPR is the operator of the list (APL Germany e.&nbsp;V.).
+  For questions regarding data protection, please contact the list address by email:
+  <code>alisia@apl-germany.de</code>.
+</p>
+
+<h2>2. What data is stored?</h2>
+
+<h3>2.1 Subscriber data (<code>subscribers.json</code>)</h3>
+<p>When subscribing to the list, the following data is stored:</p>
+<table>
+  <tr><th>Field</th><th>Content</th><th>Purpose</th></tr>
+  <tr><td><code>email</code></td><td>Your primary email address</td><td>Delivery of list emails; unique identification</td></tr>
+  <tr><td><code>name</code></td><td>Your name (optional, from email header)</td><td>Personal salutation</td></tr>
+  <tr><td><code>alternative_email</code></td><td>Alternative address (optional, provided by you)</td><td>Recognition when writing from a different address</td></tr>
+  <tr><td><code>added</code></td><td>Date of registration</td><td>Proof of consent</td></tr>
+  <tr><td><code>confirmed</code></td><td>Date of confirmation (double opt-in)</td><td>Proof of consent</td></tr>
+  <tr><td><code>disabled</code></td><td>0 or 1</td><td>NOMAIL status (temporary delivery pause)</td></tr>
+</table>
+
+<h3>2.2 Message archive (<code>Data/</code>)</h3>
+<p>
+  Every email sent to the list is stored in the archive (as an <code>.eml</code> file
+  along with a metadata file). The archive contains the sender address, subject, date and content.
+  It serves to provide the GETMSGS/LISTMSGS functionality for subscribers.
+</p>
+
+<h3>2.3 Log files (<code>alisia-YYYYMMDD.jsonl</code>)</h3>
+<p>
+  The list service writes daily rotating log files in JSON Lines format.
+  An entry contains a timestamp, log level, category and a message.
+  For subscriber-related events (category <code>SUB</code>), the email address is additionally logged.
+</p>
+
+<h3>2.4 Action log / GDPR audit log (<code>audit.jsonl</code>)</h3>
+<p>
+  All subscriber-related actions are recorded in a separate file
+  <code>audit.jsonl</code>. This serves to fulfil the accountability obligation
+  under Art. 5(2) GDPR and to safeguard your right of access (Art. 15 GDPR). Recorded events:
+</p>
+<table>
+  <tr><th>Event</th><th>Description</th></tr>
+  <tr><td><code>subscribe-pending</code></td><td>Registration requested (confirmation email sent)</td></tr>
+  <tr><td><code>confirm</code></td><td>Double opt-in confirmation received</td></tr>
+  <tr><td><code>nomail</code></td><td>Delivery paused (NOMAIL command)</td></tr>
+  <tr><td><code>mail</code></td><td>Delivery re-enabled (MAIL command)</td></tr>
+  <tr><td><code>setmydata</code></td><td>Profile data changed (fields and old/new values)</td></tr>
+  <tr><td><code>deleteme</code></td><td>Account and data deleted</td></tr>
+</table>
+<p>
+  You can view this data at any time using <span class="cmd">GETMYDATA</span>.
+  When an account is deleted (DELETEME), all your entries are permanently removed from the audit log.
+</p>
+
+<h2>3. Legal basis for processing</h2>
+<table>
+  <tr><th>Data</th><th>Legal basis</th></tr>
+  <tr><td>Subscriber data, archive</td><td>Art. 6(1)(a) GDPR – consent (double opt-in)</td></tr>
+  <tr><td>Daily log files</td><td>Art. 6(1)(f) GDPR – legitimate interest in operational security and fault diagnosis</td></tr>
+  <tr><td>Audit log</td><td>Art. 6(1)(c) GDPR – legal obligation (accountability under Art. 5(2))</td></tr>
+</table>
+
+<h2>4. Retention periods</h2>
+<table>
+  <tr><th>Data category</th><th>Retention period</th></tr>
+  <tr><td>Subscriber data</td><td>Until unsubscription (DELETEME) or upon request</td></tr>
+  <tr><td>Unconfirmed registrations</td><td>Automatically deleted after 24 hours</td></tr>
+  <tr><td>Message archive</td><td>Indefinitely (list memory); upon account deletion your sender address in the archive is replaced by <code>[deleted]</code></td></tr>
+  <tr><td>Daily log files</td><td>Retained at the operator's discretion; do not contain complete subscriber data</td></tr>
+  <tr><td>Audit log (<code>audit.jsonl</code>)</td><td>Until account deletion; fully purged thereafter</td></tr>
+</table>
+
+<h2>5. Your rights – and how to exercise them</h2>
+<p>
+  You can exercise your rights at any time by emailing the list address.
+  Send an email with the relevant command in the subject line or message body.
+</p>
+
+<h3>Art. 15 GDPR – Right of access</h3>
+<p>
+  You will receive complete information about all data stored for your email address,
+  including the action log.
+</p>
+<p>Command: <span class="cmd">GETMYDATA</span></p>
+<p>
+  Alisia will reply with an email containing your stored profile data and
+  all logged events from the audit log.
+</p>
+
+<h3>Art. 16 GDPR – Right to rectification</h3>
+<p>
+  You can change your name or an alternative email address.
+</p>
+<p>Command: <span class="cmd">SETMYDATA</span> with a JSON object in the message body, e.&nbsp;g.:</p>
+<pre><code>{ "name": "New Name", "alternative_email": "other@example.com" }</code></pre>
+<div class="note">
+  Possible fields: <code>name</code>, <code>alternative_email</code>.<br>
+  Alisia will confirm the change by email and indicate which fields were modified.
+</div>
+
+<h3>Art. 17 GDPR – Right to erasure ("right to be forgotten")</h3>
+<p>
+  Your subscription and all associated personal data will be completely deleted:
+</p>
+<ul>
+  <li>Your entry in the subscriber list will be removed.</li>
+  <li>Your address will be removed from the internal block list (if present).</li>
+  <li>Your sender address in already archived messages will be replaced by <code>[deleted]</code>.</li>
+  <li>All your entries in the audit log (<code>audit.jsonl</code>) will be permanently deleted.</li>
+</ul>
+<p>Command: <span class="cmd">DELETEME</span></p>
+<div class="note">
+  The deletion itself is only noted in the current day's operational log file,
+  which does not contain complete personal data and is not part of the GETMYDATA disclosure.
+</div>
+
+<h3>Art. 18 GDPR – Right to restriction of processing</h3>
+<p>
+  You can pause the delivery of list emails at any time without unsubscribing.
+</p>
+<p>
+  Pause delivery: <span class="cmd">NOMAIL</span><br>
+  Resume delivery: <span class="cmd">MAIL</span>
+</p>
+
+<h3>Art. 21 GDPR – Right to object</h3>
+<p>
+  You can object to the processing of your data at any time.
+  In this case we will delete your account completely (equivalent to the DELETEME command).
+  Please contact us by email at <code>alisia@apl-germany.de</code>.
+</p>
+
+<h3>Art. 77 GDPR – Right to lodge a complaint with a supervisory authority</h3>
+<p>
+  You have the right to lodge a complaint with a data protection supervisory authority,
+  in particular in the member state of your habitual residence, place of work
+  or place of the alleged infringement.
+</p>
+
+<h2>6. Quick reference of commands</h2>
+<table>
+  <tr><th>Command (subject or body)</th><th>Function</th><th>GDPR article</th></tr>
+  <tr><td><span class="cmd">GETMYDATA</span></td><td>Access to all stored data including action log</td><td>Art. 15</td></tr>
+  <tr><td><span class="cmd">SETMYDATA</span> <code>{ ... }</code></td><td>Correct profile data</td><td>Art. 16</td></tr>
+  <tr><td><span class="cmd">DELETEME</span></td><td>Permanently delete account and all data</td><td>Art. 17</td></tr>
+  <tr><td><span class="cmd">NOMAIL</span></td><td>Pause delivery</td><td>Art. 18</td></tr>
+  <tr><td><span class="cmd">MAIL</span></td><td>Resume delivery</td><td>Art. 18</td></tr>
+  <tr><td><span class="cmd">UNSUBSCRIBE</span></td><td>Unsubscribe (equivalent to DELETEME)</td><td>Art. 17 / Art. 7(3)</td></tr>
+  <tr><td><span class="cmd">HELP</span></td><td>Show all available commands</td><td>–</td></tr>
+</table>
+
+<h2>7. Disclosure to third parties</h2>
+<p>
+  Personal data is <strong>not</strong> disclosed to third parties.
+  Messages you send to the list are delivered to all subscribers –
+  this corresponds to the purpose of the mailing list, which you agreed to upon registration.
+</p>
+
+<h2>8. Technical security</h2>
+<p>
+  The list service communicates exclusively over encrypted connections (TLS/SSL)
+  to the email server. The data files are stored on the server's operating system;
+  access is restricted to the operator.
+</p>
+
+<footer>
+  As of: February 2026 &nbsp;|&nbsp;
+  Mailing list: <code>alisia@apl-germany.de</code> &nbsp;|&nbsp;
+  Operated with <em>Alisia</em> (Dyalog APL)
+</footer>
+
+</body>
+</html>

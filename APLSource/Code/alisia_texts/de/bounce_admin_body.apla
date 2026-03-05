@@ -1,0 +1,6 @@
+(
+ 'Die E-Mail-Adresse "%1" wurde nach %2 nicht zugestellten Nachrichten (Bounces) automatisch deaktiviert.'
+ ''
+ 'Sie kann in den Abonnentendaten manuell wieder aktiviert werden (disabled: false).'
+ 'Weitere Bounces für diese Adresse werden weiterhin protokolliert.'
+)

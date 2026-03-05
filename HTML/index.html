@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Konducta – Logo Konzepte</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;500;700&family=Syne:wght@400;700;800&family=Playfair+Display:wght@700;900&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0e0f13;
+    color: #f0ede8;
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    padding: 48px 32px;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 56px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 32px;
+  }
+
+  .card {
+    background: #16181f;
+    border: 1px solid #252830;
+    border-radius: 16px;
+    padding: 48px 40px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .card-label {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #444;
+  }
+
+  .logo-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+  }
+
+  .desc {
+    font-size: 11px;
+    color: #555;
+    line-height: 1.7;
+    border-top: 1px solid #252830;
+    padding-top: 16px;
+  }
+
+  /* ── Concept 1: Conductor Baton + Waveform ── */
+  .logo-1 {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .logo-1 .icon-1 {
+    width: 48px;
+    height: 48px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .logo-1 .wordmark {
+    font-family: 'Syne', sans-serif;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #f0ede8;
+  }
+  .logo-1 .wordmark span { color: #e8b84b; }
+
+  /* ── Concept 2: Score Lines ── */
+  .logo-2 {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .logo-2 .score {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 36px;
+  }
+  .logo-2 .bar {
+    width: 4px;
+    border-radius: 2px;
+    background: #3a8ef6;
+  }
+  .logo-2 .wordmark {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    letter-spacing: 0.01em;
+    color: #f0ede8;
+    line-height: 1;
+  }
+  .logo-2 .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #3a8ef6;
+  }
+
+  /* ── Concept 3: K Monogram with flow lines ── */
+  .logo-3 {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo-3 .monogram {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+    border: 1.5px solid #3a8ef6;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .logo-3 .monogram::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 30%, rgba(58,142,246,0.15), transparent 60%);
+  }
+  .logo-3 .monogram svg { position: relative; z-index: 1; }
+  .logo-3 .right { display: flex; flex-direction: column; gap: 2px; }
+  .logo-3 .wordmark {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #f0ede8;
+  }
+  .logo-3 .sub {
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #3a8ef6;
+    font-weight: 500;
+  }
+
+  /* ── Concept 4: Minimal Wordmark ── */
+  .logo-4 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .logo-4 .wordmark {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    color: #f0ede8;
+    position: relative;
+  }
+  .logo-4 .wordmark .accent { color: #d44f3e; font-style: italic; }
+  .logo-4 .rule {
+    width: 100%;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent, #d44f3e, transparent);
+  }
+  .logo-4 .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: #888;
+  }
+
+  /* ── Concept 5: Circuit / event routing ── */
+  .logo-5 {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .logo-5 .icon { flex-shrink: 0; }
+  .logo-5 .wordmark {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f0ede8;
+  }
+  .logo-5 .wordmark .k { color: #22d3a3; }
+
+  /* ── Concept 6: Orchestral arc ── */
+  .logo-6 {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo-6 .emblem {
+    width: 56px; height: 56px;
+    flex-shrink: 0;
+  }
+  .logo-6 .wordmark {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #f0ede8;
+  }
+  .logo-6 .wordmark em {
+    font-style: normal;
+    color: transparent;
+    -webkit-text-stroke: 1px #f0ede8;
+  }
+  .logo-6 .sub {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #555;
+    margin-top: 2px;
+  }
+
+</style>
+</head>
+<body>
+
+<h1>Konducta — Logo Konzepte</h1>
+
+<div class="grid">
+
+  <!-- Concept 1: Baton + event pulse -->
+  <div class="card">
+    <div class="card-label">Konzept 1 — Taktstock &amp; Puls</div>
+    <div class="logo-area">
+      <div class="logo-1">
+        <div class="icon-1">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <!-- baton diagonal -->
+            <line x1="8" y1="40" x2="36" y2="12" stroke="#e8b84b" stroke-width="3" stroke-linecap="round"/>
+            <!-- event pulse dots on the baton -->
+            <circle cx="14" cy="34" r="3" fill="#e8b84b" opacity="0.4"/>
+            <circle cx="22" cy="26" r="3.5" fill="#e8b84b"/>
+            <circle cx="30" cy="18" r="2.5" fill="#e8b84b" opacity="0.6"/>
+            <!-- tip glow -->
+            <circle cx="36" cy="12" r="4" fill="#e8b84b" opacity="0.3"/>
+            <circle cx="36" cy="12" r="2" fill="#e8b84b"/>
+          </svg>
+        </div>
+        <div class="wordmark">Kon<span>d</span>ucta</div>
+      </div>
+    </div>
+    <div class="desc">Goldener Taktstock als zentrales Symbol. Punkte entlang der Linie stehen für diskrete Events. Syne Bold unterstreicht technische Stärke, der goldene Akzent verleiht Eleganz.</div>
+  </div>
+
+  <!-- Concept 2: Score bars -->
+  <div class="card">
+    <div class="card-label">Konzept 2 — Partitur / Score</div>
+    <div class="logo-area">
+      <div class="logo-2">
+        <div class="score">
+          <!-- bars of different heights = musical bars = workflow steps -->
+          <div class="bar" style="height:14px;opacity:.35;background:#3a8ef6"></div>
+          <div class="bar" style="height:28px;background:#3a8ef6"></div>
+          <div class="bar" style="height:20px;opacity:.7;background:#3a8ef6"></div>
+          <div class="bar" style="height:36px;background:#3a8ef6"></div>
+          <div class="bar" style="height:24px;opacity:.8;background:#3a8ef6"></div>
+          <div class="bar" style="height:10px;opacity:.3;background:#3a8ef6"></div>
+          <div class="bar" style="height:32px;opacity:.9;background:#3a8ef6"></div>
+          <div class="bar" style="height:18px;opacity:.55;background:#3a8ef6"></div>
+        </div>
+        <div class="wordmark">Konducta</div>
+        <div class="tag">Event Orchestration</div>
+      </div>
+    </div>
+    <div class="desc">Balken-Visualisierung als Partitur-Metapher — gleichzeitig ein Bargraph wie in Monitoring-Dashboards. DM Serif Display gibt dem Wortmarken-Text klassische Würde mit modernem Kontrast.</div>
+  </div>
+
+  <!-- Concept 3: K Monogram -->
+  <div class="card">
+    <div class="card-label">Konzept 3 — K Monogramm + Flows</div>
+    <div class="logo-area">
+      <div class="logo-3">
+        <div class="monogram">
+          <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+            <!-- K shape with flow lines branching out -->
+            <line x1="8" y1="5" x2="8" y2="25" stroke="#3a8ef6" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="8" y1="15" x2="22" y2="6" stroke="#3a8ef6" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="8" y1="15" x2="22" y2="24" stroke="#3a8ef6" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- small node dots -->
+            <circle cx="22" cy="6" r="2.5" fill="#3a8ef6"/>
+            <circle cx="22" cy="24" r="2.5" fill="#3a8ef6"/>
+            <circle cx="8" cy="15" r="2" fill="#f0ede8"/>
+          </svg>
+        </div>
+        <div class="right">
+          <div class="wordmark">Konducta</div>
+          <div class="sub">Orchestration Engine</div>
+        </div>
+      </div>
+    </div>
+    <div class="desc">Das K wird zur visuellen Metapher für Event-Routing: ein zentraler Knoten, von dem Flows abzweigen. App-Icon-tauglich. Funktioniert auch als Avatar/Favicon.</div>
+  </div>
+
+  <!-- Concept 4: Editorial serif with red accent -->
+  <div class="card">
+    <div class="card-label">Konzept 4 — Editorial / Partiturblatt</div>
+    <div class="logo-area">
+      <div class="logo-4">
+        <div class="wordmark">K<span class="accent">onducta</span></div>
+        <div class="rule"></div>
+        <div class="sub">Workflow Orchestration</div>
+      </div>
+    </div>
+    <div class="desc">Playfair Display in Kursiv für „onducta" – ein bewusster Stilbruch, der die Partitur-Handschrift evoziert. Terracotta-Rot als Akzent ist ungewöhnlich und einprägsam für ein Dev-Tool.</div>
+  </div>
+
+  <!-- Concept 5: Mono / terminal style -->
+  <div class="card">
+    <div class="card-label">Konzept 5 — Developer / Terminal</div>
+    <div class="logo-area">
+      <div class="logo-5">
+        <div class="icon">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+            <rect width="44" height="44" rx="10" fill="#0d1f1a"/>
+            <!-- terminal prompt -->
+            <text x="8" y="20" font-family="JetBrains Mono, monospace" font-size="11" fill="#22d3a3" font-weight="700">$ run</text>
+            <text x="8" y="34" font-family="JetBrains Mono, monospace" font-size="11" fill="#22d3a3" font-weight="300" opacity="0.5">workflow</text>
+          </svg>
+        </div>
+        <div class="wordmark"><span class="k">K</span>onducta</div>
+      </div>
+    </div>
+    <div class="desc">Klare Entwickler-Ansprache: Terminal-Ästhetik mit smaragdgrünem Akzent. JetBrains Mono Wordmark signalisiert „built for devs, by devs". Direkter, ehrlicher Charakter.</div>
+  </div>
+
+  <!-- Concept 6: Arc / baton sweep -->
+  <div class="card">
+    <div class="card-label">Konzept 6 — Dirigentenschwung</div>
+    <div class="logo-area">
+      <div class="logo-6">
+        <div class="emblem">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <!-- arc representing conductor's sweep -->
+            <path d="M10 46 Q28 4 46 46" stroke="#f0ede8" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.15"/>
+            <path d="M10 46 Q28 8 40 28" stroke="#f0ede8" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.5"/>
+            <path d="M10 46 Q22 14 34 18" stroke="#f0ede8" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <!-- baton tip -->
+            <circle cx="34" cy="18" r="4" fill="#e8b84b"/>
+            <circle cx="34" cy="18" r="7" fill="#e8b84b" opacity="0.2"/>
+            <!-- event nodes along path -->
+            <circle cx="16" cy="36" r="2.5" fill="#f0ede8" opacity="0.4"/>
+            <circle cx="23" cy="25" r="2.5" fill="#f0ede8" opacity="0.65"/>
+            <circle cx="30" cy="19" r="2.5" fill="#f0ede8" opacity="0.85"/>
+          </svg>
+        </div>
+        <div>
+          <div class="wordmark">Kon<em>duc</em>ta</div>
+          <div class="sub">Event Orchestration</div>
+        </div>
+      </div>
+    </div>
+    <div class="desc">Der Taktstock-Schwung visualisiert Orchestrierung als Bewegung. Events sitzen als Nodes auf der Kurve. Der hohle Schriftzug für „duc" bricht die Wortmarke visuell auf.</div>
+  </div>
+
+</div>
+
+</body>
+</html>

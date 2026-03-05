@@ -1,0 +1,13 @@
+(
+ 'You or someone that used your email address (or an administrator of the list) has subscribed you to the mailinglist indicated in the subject.'
+ 'To protect you from unwanted spam, we require an explicit opt-in - so a confirmation is required before the subscriptions becomes effective.'
+ ''
+ 'If you are interested in joining this mailing list, please confirm your subscription by replying to this message (or sending a new message) '
+ 'with the subject "⍙cmd_confirm⍙ %1" within the next 24 hours! Alternatively, click this link: %2'
+ 'Please notice: the confirmation must be sent from email address this confirmation was sent to!'
+ ''
+ 'If you are not interested (or believe this is a mistake), please simply ignore this message - there will be no further contact.'
+ 'NB: this is a repeated invitation as the original subscription was not confirmed.'
+ '    Please note that the tokan has been updated, so please reply to this message (or click its link) to confirm your subscription.'
+ 'Alternatively, you can reply with "⍙cmd_ignoreme⍙" in the subject (or by clicking this link: %3) to stop further emails.'
+)

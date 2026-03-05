@@ -1,0 +1,6 @@
+(
+    '<div id="alisia_header" style="border-bottom: solid medium; background-color: darkgrey;font-family: ''Lucida Console'', Monaco, monospace; font-weight: 800; padding: .5em;margin-bottom: 2em; color: #000000">'
+    'You''ve sent an email on %2 with subject "%1" asking for delivery of email(s) from the archive.'
+    'The expression "%3" selected this email.'
+    '</div>'
+)

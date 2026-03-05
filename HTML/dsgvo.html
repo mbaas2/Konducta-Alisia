@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Datenschutzerklärung – APL Germany Mailingliste</title>
+  <style>
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1rem;
+      line-height: 1.7;
+      color: #222;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+    h1 { font-size: 1.6rem; border-bottom: 2px solid #555; padding-bottom: .4rem; margin-top: 2.5rem; }
+    h2 { font-size: 1.2rem; margin-top: 2rem; color: #333; }
+    h3 { font-size: 1rem; margin-top: 1.5rem; color: #444; }
+    code {
+      font-family: 'Lucida Console', Monaco, monospace;
+      background: #f4f4f4;
+      padding: .1em .4em;
+      border-radius: 3px;
+      font-size: .9em;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: .5rem .8rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eee; font-weight: bold; }
+    .cmd {
+      display: inline-block;
+      background: #e8f0fe;
+      border: 1px solid #aac;
+      border-radius: 4px;
+      padding: .15em .6em;
+      font-family: 'Lucida Console', Monaco, monospace;
+      font-size: .9em;
+    }
+    .note {
+      background: #fffbe6;
+      border-left: 4px solid #f0c040;
+      padding: .6rem 1rem;
+      margin: 1rem 0;
+      font-size: .95rem;
+    }
+    footer {
+      margin-top: 3rem;
+      font-size: .85rem;
+      color: #777;
+      border-top: 1px solid #ddd;
+      padding-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Datenschutzerklärung</h1>
+<p>
+  Diese Datenschutzerklärung gilt für die E-Mail-Mailingliste der <strong>APL Germany e.&nbsp;V.</strong>,
+  betrieben über den automatisierten Listendienst <em>Alisia</em>.
+  Sie informiert Sie darüber, welche personenbezogenen Daten erhoben werden, zu welchem Zweck,
+  wie lange sie gespeichert werden und welche Rechte Sie haben.
+</p>
+<p>
+  Rechtsgrundlage ist die <strong>EU-Datenschutz-Grundverordnung (DSGVO)</strong> sowie das
+  Bundesdatenschutzgesetz (BDSG).
+</p>
+
+<h2>1. Verantwortlicher</h2>
+<p>
+  Verantwortlich im Sinne der DSGVO ist der Betreiber der Liste (APL Germany e.&nbsp;V.).
+  Bei Fragen zum Datenschutz wenden Sie sich bitte per E-Mail an die Listenadresse:
+  <code>alisia@apl-germany.de</code>.
+</p>
+
+<h2>2. Welche Daten werden gespeichert?</h2>
+
+<h3>2.1 Abonnentendaten (<code>subscribers.json</code>)</h3>
+<p>Beim Abonnieren der Liste werden folgende Daten gespeichert:</p>
+<table>
+  <tr><th>Feld</th><th>Inhalt</th><th>Zweck</th></tr>
+  <tr><td><code>email</code></td><td>Ihre primäre E-Mail-Adresse</td><td>Zustellung der Listenmails; eindeutige Identifikation</td></tr>
+  <tr><td><code>name</code></td><td>Ihr Name (optional, aus E-Mail-Header)</td><td>Persönliche Ansprache</td></tr>
+  <tr><td><code>alternative_email</code></td><td>Alternative Adresse (optional, von Ihnen angegeben)</td><td>Erkennung beim Schreiben von einer anderen Adresse</td></tr>
+  <tr><td><code>added</code></td><td>Datum der Anmeldung</td><td>Nachweis der Einwilligung</td></tr>
+  <tr><td><code>confirmed</code></td><td>Datum der Bestätigung (Double-Opt-in)</td><td>Nachweis der Einwilligung</td></tr>
+  <tr><td><code>disabled</code></td><td>0 oder 1</td><td>NOMAIL-Status (vorübergehende Zustellpause)</td></tr>
+</table>
+
+<h3>2.2 Nachrichtenarchiv (<code>Data/</code>)</h3>
+<p>
+  Jede an die Liste gesendete E-Mail wird im Archiv gespeichert (als <code>.eml</code>-Datei
+  sowie eine Metadatendatei). Das Archiv enthält Absenderadresse, Betreff, Datum und Inhalt.
+  Es dient der Bereitstellung der GETMSGS-/LISTMSGS-Funktion für Abonnenten.
+</p>
+
+<h3>2.3 Protokolldateien (<code>alisia-JJJJMMTT.jsonl</code>)</h3>
+<p>
+  Der Listendienst schreibt täglich rotierende Protokolldateien im JSON-Lines-Format.
+  Ein Eintrag enthält Zeitstempel, Loglevel, Kategorie und eine Nachricht.
+  Für abonnentenbezogene Ereignisse (Kategorie <code>SUB</code>) wird zusätzlich
+  die E-Mail-Adresse protokolliert.
+</p>
+
+<h3>2.4 Aktionsprotokoll / DSGVO-Auditlog (<code>audit.jsonl</code>)</h3>
+<p>
+  Alle abonnentenbezogenen Aktionen werden in einer separaten Datei
+  <code>audit.jsonl</code> festgehalten. Dies dient der Erfüllung der
+  Rechenschaftspflicht gemäß Art. 5 Abs. 2 DSGVO sowie der Wahrung Ihres
+  Auskunftsrechts (Art. 15 DSGVO). Gespeicherte Ereignisse:
+</p>
+<table>
+  <tr><th>Ereignis</th><th>Beschreibung</th></tr>
+  <tr><td><code>subscribe-pending</code></td><td>Anmeldung beantragt (Bestätigungs-E-Mail versendet)</td></tr>
+  <tr><td><code>confirm</code></td><td>Double-Opt-in-Bestätigung eingegangen</td></tr>
+  <tr><td><code>nomail</code></td><td>Zustellung pausiert (NOMAIL-Befehl)</td></tr>
+  <tr><td><code>mail</code></td><td>Zustellung wieder aktiviert (MAIL-Befehl)</td></tr>
+  <tr><td><code>setmydata</code></td><td>Profildaten geändert (Felder und alte/neue Werte)</td></tr>
+  <tr><td><code>deleteme</code></td><td>Konto und Daten gelöscht</td></tr>
+</table>
+<p>
+  Diese Daten können Sie jederzeit per <span class="cmd">GETMYDATA</span> einsehen.
+  Bei einer Kontolöschung (DELETEME) werden alle Ihre Einträge aus dem Auditlog vollständig
+  entfernt.
+</p>
+
+<h2>3. Rechtsgrundlage der Verarbeitung</h2>
+<table>
+  <tr><th>Daten</th><th>Rechtsgrundlage</th></tr>
+  <tr><td>Abonnentendaten, Archiv</td><td>Art. 6 Abs. 1 lit. a DSGVO – Einwilligung (Double-Opt-in)</td></tr>
+  <tr><td>Tages-Protokolldateien</td><td>Art. 6 Abs. 1 lit. f DSGVO – berechtigtes Interesse an Betriebssicherheit und Fehlerdiagnose</td></tr>
+  <tr><td>Auditlog</td><td>Art. 6 Abs. 1 lit. c DSGVO – rechtliche Verpflichtung (Rechenschaftspflicht Art. 5 Abs. 2)</td></tr>
+</table>
+
+<h2>4. Speicherdauer</h2>
+<table>
+  <tr><th>Datenkategorie</th><th>Speicherdauer</th></tr>
+  <tr><td>Abonnentendaten</td><td>Bis zur Abmeldung (DELETEME) oder auf Antrag</td></tr>
+  <tr><td>Unbestätigte Anmeldungen</td><td>Automatische Löschung nach 24 Stunden</td></tr>
+  <tr><td>Nachrichtenarchiv</td><td>Dauerhaft (Listengedächtnis); bei Kontolöschung wird Ihre Absenderadresse im Archiv durch <code>[deleted]</code> ersetzt</td></tr>
+  <tr><td>Tages-Protokolldateien</td><td>Aufbewahrung nach Ermessen des Betreibers; enthalten keine vollständigen Abonnentendaten</td></tr>
+  <tr><td>Auditlog (<code>audit.jsonl</code>)</td><td>Bis zur Kontolöschung; danach vollständig bereinigt</td></tr>
+</table>
+
+<h2>5. Ihre Rechte – und wie Sie sie ausüben</h2>
+<p>
+  Sie können Ihre Rechte jederzeit per E-Mail an die Listenadresse wahrnehmen.
+  Schreiben Sie eine E-Mail mit dem jeweiligen Befehl im Betreff oder im Nachrichtentext.
+</p>
+
+<h3>Art. 15 DSGVO – Auskunftsrecht</h3>
+<p>
+  Sie erhalten eine vollständige Auskunft über alle zu Ihrer E-Mail-Adresse gespeicherten Daten
+  inklusive des Aktionsprotokolls.
+</p>
+<p>Befehl: <span class="cmd">GETMYDATA</span></p>
+<p>
+  Alisia antwortet mit einer E-Mail, die Ihre gespeicherten Profildaten sowie
+  alle protokollierten Ereignisse aus dem Auditlog enthält.
+</p>
+
+<h3>Art. 16 DSGVO – Recht auf Berichtigung</h3>
+<p>
+  Sie können Ihren Namen oder eine alternative E-Mail-Adresse ändern.
+</p>
+<p>Befehl: <span class="cmd">SETMYDATA</span> mit einem JSON-Objekt im Nachrichtentext, z.&nbsp;B.:</p>
+<pre><code>{ "name": "Neuer Name", "alternative_email": "andere@beispiel.de" }</code></pre>
+<div class="note">
+  Mögliche Felder: <code>name</code>, <code>alternative_email</code>.<br>
+  Alisia bestätigt die Änderung per E-Mail und gibt an, welche Felder geändert wurden.
+</div>
+
+<h3>Art. 17 DSGVO – Recht auf Löschung („Recht auf Vergessenwerden")</h3>
+<p>
+  Ihr Abonnement und alle damit verbundenen personenbezogenen Daten werden vollständig gelöscht:
+</p>
+<ul>
+  <li>Ihr Eintrag in der Abonnentenliste wird entfernt.</li>
+  <li>Ihre Adresse wird aus der internen Sperrliste entfernt (falls vorhanden).</li>
+  <li>Ihre Absenderadresse in bereits archivierten Nachrichten wird durch <code>[deleted]</code> ersetzt.</li>
+  <li>Alle Ihre Einträge im Auditlog (<code>audit.jsonl</code>) werden vollständig gelöscht.</li>
+</ul>
+<p>Befehl: <span class="cmd">DELETEME</span></p>
+<div class="note">
+  Der Löschvorgang selbst wird lediglich in der tagesaktuellen Betriebsprotokolldatei vermerkt,
+  die keine vollständigen personenbezogenen Daten enthält und nicht Teil der GETMYDATA-Auskunft ist.
+</div>
+
+<h3>Art. 18 DSGVO – Recht auf Einschränkung der Verarbeitung</h3>
+<p>
+  Sie können die Zustellung von Listenmails jederzeit pausieren, ohne sich abzumelden.
+</p>
+<p>
+  Pause aktivieren: <span class="cmd">NOMAIL</span><br>
+  Zustellung wieder aktivieren: <span class="cmd">MAIL</span>
+</p>
+
+<h3>Art. 21 DSGVO – Widerspruchsrecht</h3>
+<p>
+  Sie können der Verarbeitung Ihrer Daten jederzeit widersprechen.
+  In diesem Fall löschen wir Ihr Konto vollständig (entspricht dem DELETEME-Befehl).
+  Wenden Sie sich dazu per E-Mail an <code>alisia@apl-germany.de</code>.
+</p>
+
+<h3>Art. 77 DSGVO – Beschwerderecht bei der Aufsichtsbehörde</h3>
+<p>
+  Sie haben das Recht, sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren,
+  insbesondere in dem Mitgliedstaat Ihres gewöhnlichen Aufenthaltsorts, Ihres Arbeitsplatzes
+  oder des Orts des mutmaßlichen Verstoßes.
+</p>
+
+<h2>6. Kurzübersicht der Befehle</h2>
+<table>
+  <tr><th>Befehl (Betreff oder Text)</th><th>Funktion</th><th>DSGVO-Artikel</th></tr>
+  <tr><td><span class="cmd">GETMYDATA</span></td><td>Auskunft über alle gespeicherten Daten inkl. Aktionslog</td><td>Art. 15</td></tr>
+  <tr><td><span class="cmd">SETMYDATA</span> <code>{ ... }</code></td><td>Profildaten berichtigen</td><td>Art. 16</td></tr>
+  <tr><td><span class="cmd">DELETEME</span></td><td>Konto und alle Daten vollständig löschen</td><td>Art. 17</td></tr>
+  <tr><td><span class="cmd">NOMAIL</span></td><td>Zustellung pausieren</td><td>Art. 18</td></tr>
+  <tr><td><span class="cmd">MAIL</span></td><td>Zustellung wieder aktivieren</td><td>Art. 18</td></tr>
+  <tr><td><span class="cmd">UNSUBSCRIBE</span></td><td>Abmelden (entspricht DELETEME)</td><td>Art. 17 / Art. 7 Abs. 3</td></tr>
+  <tr><td><span class="cmd">HELP</span></td><td>Alle verfügbaren Befehle anzeigen</td><td>–</td></tr>
+</table>
+
+<h2>7. Weitergabe an Dritte</h2>
+<p>
+  Personenbezogene Daten werden <strong>nicht</strong> an Dritte weitergegeben.
+  Nachrichten, die Sie an die Liste senden, werden an alle Abonnenten zugestellt –
+  dies entspricht dem Zweck der Mailingliste, dem Sie mit der Anmeldung zugestimmt haben.
+</p>
+
+<h2>8. Technische Sicherheit</h2>
+<p>
+  Der Listendienst kommuniziert ausschließlich über verschlüsselte Verbindungen (TLS/SSL)
+  zum E-Mail-Server. Die Datendateien werden auf dem Betriebssystem des Servers gespeichert;
+  der Zugang ist auf den Betreiber beschränkt.
+</p>
+
+<footer>
+  Stand: Februar 2026 &nbsp;|&nbsp;
+  Mailingliste: <code>alisia@apl-germany.de</code> &nbsp;|&nbsp;
+  Betrieben mit <em>Alisia</em> (Dyalog APL)
+</footer>
+
+</body>
+</html>

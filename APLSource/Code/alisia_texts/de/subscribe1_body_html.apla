@@ -1,0 +1,10 @@
+(
+ 'Sie oder jemand, der Ihre E-Mail-Adresse verwendet hat (oder ein Administrator der Liste), hat Sie f&uuml;r die im Betreff angegebene Mailingliste angemeldet.'
+ 'Um Sie vor unerw&uuml;nschtem Spam zu sch&uuml;tzen, ben&ouml;tigen wir eine ausdr&uuml;ckliche Zustimmung - daher ist eine Best&auml;tigung erforderlich, bevor das Abonnement wirksam wird.<br />'
+ '<br />'
+ '<b>Wenn Sie an dieser Mailingliste interessiert sind, best&auml;tigen Sie bitte innerhalb der n&auml;chsten 24 Stunden Ihr Abonnement,'
+ 'indem Sie auf diese Nachricht antworten (oder eine neue Nachricht senden) mit dem Betreff "⍙cmd_confirm⍙ %1". Alternativ klicken Sie auf <a href=''%2''>diesen Link</a>.</b><br />'
+ 'Bitte beachten Sie: Die Best&auml;tigung muss von der E-Mail-Adresse gesendet werden, an die diese Best&auml;tigung gesendet wurde.<br />'
+ '<br />'
+ 'Wenn Sie nicht interessiert sind (oder dies f&uuml;r einen Fehler halten), ignorieren Sie diese Nachricht einfach - es wird keine weitere Kontaktaufnahme erfolgen.'
+)

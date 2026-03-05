@@ -1,0 +1,6 @@
+(
+ 'Admin commands:'
+ '- Send message with "⍙cmd_subscribe⍙ {email}" to the list to subscribe user with given email. They will be asked for confirmation.'
+ '- Send message with "⍙cmd_unsubscribe⍙ {email}" to the list to immediately unsubscribe user with given email.'
+ '- Send message with "⍙cmd_listmembers⍙" to the list to receive a member list with email address, status and join date.'
+)

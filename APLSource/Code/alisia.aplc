@@ -1,0 +1,1566 @@
+:class Alisia : eventler_Handler
+    :field private  shared    CR←⎕UCS 13
+    :field private  shared    LF←⎕UCS 10
+    :field private shared      CRLF←⎕UCS 13 10
+    :field private shared      styles←⍬
+    :field public shared devCmds←'GIT PULL' 'DETRAP' 'RETRAP'
+
+    ∇ h←home
+      h←1⊃⎕NPARTS 50 ⎕ATX 1⊃⎕SI
+    ∇
+
+    ∇ r←GetStyles
+      ⍝ Lazy-load level styles from Config/alisia_styles.json5 (cached in shared field)
+      :If 0=≢styles
+          styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(home,'../../Config/alisia_styles.json5')
+      :EndIf
+      r←styles
+    ∇
+
+    ∇ r←GetCommand subj        ⍝ remove possible redirection from subject line
+      :Access public
+      r←RMB(¯1+subj⍳'>')↑subj
+      'DBG' 'SYS'(⊃#.Triggers.handlers).Log'GetCommand extracted "',r,'" from subject ',subj
+    ∇
+
+    ∇ make(config id parent_config);project_dir;dir;mkv;ovrd
+      :Implements constructor
+      :Access public
+      cfg←config
+      cfg.id←id
+      CFG←parent_config
+      txt_ns←'alisia_texts'
+      mkv←'4.14.0'   ⍝ Mailkit Version
+      project_dir←(739⌶0),'/Eventler_email_smtp_',mkv
+      :If ~⎕NEXISTS project_dir
+          3 ⎕MKDIR project_dir
+      :EndIf
+      (#.NuGet←#.nuget).Setup project_dir
+      {}#.NuGet.Add project_dir('MimeKit/',mkv)('MailKit/',mkv)
+      ⎕USING←('System' 'System.Text' 'System.IO' 'System.Threading' 'MailKit.Net.Smtp' 'MimeKit'),#.NuGet.Using project_dir
+      CancellationToken←⎕NEW Threading.CancellationToken 0
+      dir←CFG.config.Folder
+      3 ⎕MKDIR dir    ⍝ create the neccessary folders...
+      3 ⎕MKDIR dir,'in'
+      3 ⎕MKDIR dir,'archive'
+      3 ⎕MKDIR dir,'trash'
+      :Trap 0  ⍝ apply per-instance config overrides if present
+          ovrd←⎕JSON 1⊃⎕NGET dir,'cfg_overrides.json'
+          {⍵ cfg.{⍎⍺,'←⍵'}ovrd⍎⍵}¨↓ovrd.⎕NL ¯2
+      :EndTrap
+    ∇
+
+    ∇ R←{opts}AddSubscriber msg;m;sub;sub∆;dir;file;z;log;rc;token;body;tit;i;res;ns;adr;html;E;ju;blacklist;hdr;mail;body_html;window;purl
+      :Access public
+⍝ msg is the message we're dealing with. we'll process sender and possibly subject.
+⍝ R=0: default processing went ok (mode0: added subscriber(s) and sent confirmation mail, mode1: processed confirmation)
+⍝ R=1   entry was in list already
+⍝ R=2   confirmed mailaddress not found
+⍝ R=3   token mismatch
+⍝ R=4   duplicate confirmation
+⍝ R=5   confirmation window expired
+⍝ opts: sum of bit flags (note that when _hasBitSet refers to them, it assumes ⎕IO=0)
+⍝    0=notify ⍵ if duplicate submission
+⍝    1=mode: 0 or absent: first contact
+⍝            1: confirm subscription (subject must match "confirm" - not case sensitive)
+⍝    2=subscribed through admin (who might send additional info in body text!)
+⍝    3=ignoreme! (add email to ignore-list)
+⍝ OR: opts and be a ns! Then it must have a var "SubscriberOpts" that has the value for opts!
+     
+     
+⍝ subscribers.json
+⍝ [{
+⍝   "name": "Hans Wurst",
+⍝   "email": "hans@wurst.de",// the PRIMARY address!
+⍝   "added": Dyalog Date Number,
+⍝   "confirmed": DDN,
+⍝   "alternative_email": [...]
+⍝}]
+      :If 9=⎕NC'msg'
+          hdr←1 2⍴'In-Reply-To'((↑msg.headers){2⊃(⍺⍪⊂'')[⍺[;1]⍳⊂⍵;]}'Message-ID')
+      :Else
+          hdr←0 2⍴''
+      :EndIf
+      ⍝ RFC 2369 / RFC 2919 List-* Headers (spam protection, as with regular newsletter delivery)
+      hdr⍪←'List-Id'(cfg.list_name,' <',⎕C cfg.name_short,'.',(cfg.smtp_from↓⍨cfg.smtp_from⍳'@'),'>')
+      hdr⍪←'List-Unsubscribe'('<mailto:',cfg.smtp_from,'?subject=UNSUBSCRIBE>')
+      hdr⍪←'List-Help'('<mailto:',cfg.smtp_from,'?subject=HELP>')
+      hdr⍪←'List-Post'('<mailto:',cfg.smtp_from,'>')
+      hdr⍪←'List-Subscribe'('<mailto:',cfg.smtp_from,'?subject=SUBSCRIBE>')
+      hdr⍪←'Precedence' 'list'
+     
+      blacklist←GetBlacklist
+      file←CFG.config.Folder,'subscribers.json'
+      sub←GetSubscribers 2
+      sub∆←⎕JSON ⎕JSON sub   ⍝ make sure it's not a ref!
+      R←0
+      :If 9=⎕NC'opts'
+          E←⎕JSON ⎕JSON opts
+          opts←E.SubscriberOpts
+      :EndIf
+      :If 9=⎕NC'msg'
+          adr←MailboxAddress.Parse⊆msg.sender
+      :Else
+          adr←⎕NS''
+          adr.Address←msg
+          adr.Name←msg
+      :EndIf
+      :If opts=8 ⍝ put email to ignore list (and remove it from subscribers)
+          ns←⎕NS''
+          ns.(name email)←adr.(Name Address)
+          :If 0<≢blacklist
+              →((⊆ns.email)∊⍥⎕C blacklist.email)/0
+          :EndIf
+          ns.added←1 ⎕DT⊂⎕TS
+          blacklist,←ns
+          (⊂(⎕JSON⍠'Compact' 0)blacklist)⎕NPUT(CFG.config.Folder,'blacklist.json')1
+          z←sub.email∊⍥⎕C⊂ns.email
+          sub∆←(~z)/sub∆
+          res←hdr SendMail(ns.email)(⍙'tit_blacklisted')(⍙'body_blacklisted')
+      :Else
+          :Select opts #._hasBitSet 1  ⍝ regular subscription (0) or confirmation(1)
+          :Case 0
+              :If 0<≢sub
+              :AndIf z←(⊆adr.Address){⍺∊⍥⎕C(∊2=⍵.⎕NC⊂'confirmed')/⍵.email}sub   ⍝ do we know this email address already?
+                  R←1 0
+                  res←hdr SendMail(adr.Address)(⍙'notSubscribed1_tit')(⍙'notSubscribed1_body')
+              :Else   ⍝ no, new subscriber
+                  ns←⎕NS''
+                  ns.(name email)←adr.(Name Address)
+                  ns.added←1 ⎕DT⊂⎕TS
+                  ns.token←token←1↓,'-',⎕D[?4⍴10],[0.5]⎕A[?4⍴26]
+                  :If (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
+                      sub,←ns
+                      tit←⍙'subscribe1_tit'cfg.##.handler_cfg.list_name
+                  :Else ⍝ just update existing record with new token...
+                      sub[z]←⊂ns
+                      tit←⍙'subscribe1r_tit'cfg.##.handler_cfg.list_name
+                  :EndIf
+                  html←body←''
+                  :If opts #._hasBitSet 2
+                      body←E.Text(80⍴'_')
+                      html←E.Html'<hr>'
+                      tit←⍙'subscribe2_tit'cfg.##.handler_cfg.list_name
+                  :EndIf
+                  ju←#.JARVIS_URL,'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
+                  body←body,⍙'subscribe1_body'token ju
+                  html←html,⍙'subscribe1_body_html'token ju
+                  :If 0<≢purl←{6::'' ⋄ cfg.##.handler_cfg.privacy_url}⍬
+                      html,←⊂⍙'privacy_link_html'purl
+                      body,←⊂⍙'privacy_link_text'purl
+                  :EndIf
+                  body←∊body,¨CR
+                  html←∊html,¨CR
+                  res←hdr SendMail(ns.email)tit body html
+                  :If opts #._hasBitSet 2
+                      'INFO' 'SUB'Log('subscribe-pending by admin: ',E.sender)(⊆ns.email)
+                  :Else
+                      'INFO' 'SUB'Log'subscribe-pending'(⊆ns.email)
+                  :EndIf
+              :EndIf
+          :Case 1
+              mail←adr.Address
+              token←msg.subject
+              :If 0<≢sub
+              :AndIf (≢sub)≥i←sub.email⍳⍥⎕C⊆mail
+                  :If 0=sub[i].⎕NC'confirmed'
+                      window←{2=⍵.⎕NC'confirm_window_hours':⍵.confirm_window_hours ⋄ 48}cfg
+                      :If (2=sub[i].⎕NC'added')∧(1 ⎕DT⊂⎕TS)-sub[i].added>window÷24
+                          sub←(i≠⍳≢sub)/sub
+                          'WARN' 'SUB'Log'confirm expired'(⊆mail)
+                          res←hdr SendMail(mail)(⍙'confirm_expired_tit')(⍙'confirm_expired_body'cfg.##.handler_cfg.list_name(⍕⌊window))
+                          R←5 0
+                          (⊂(⎕JSON ⎕OPT'Compact' 0)sub)⎕NPUT file 1
+                          →0
+                      :EndIf
+                      :If ∨/sub[i].token⍷⍥⎕C token  ⍝ check if token matches (well, if it is found in the subject)
+                          R←0 0
+                          sub[i].confirmed←1 ⎕DT⊂⎕TS
+                          sub[i].⎕EX'token'
+                          tit←⍙'thanks4Confirmation_tit'cfg.##.handler_cfg.list_name
+                          body←∊(⍙¨'thanks4Confirmation_body' 'help_plain'),¨¨⊂⎕UCS 13
+                          body_html←∊(⍙¨'thanks4Confirmation_html' 'help_html'),¨¨⊂⎕UCS 13
+                          res←hdr SendMail(mail)tit body body_html
+                          'INFO' 'SUB'Log'confirm'(⊆mail)
+                      :Else
+                          res←hdr SendMail(mail)(⍙'token_mismatch_tit'sub[i].token)(⍙'statusNotChanged_body')
+                          R←3 0
+                      :EndIf
+                  :Else
+                      res←hdr SendMail(mail)(⍙'emailAlreadyConfirmed_tit')(⍙'statusNotChanged_body')
+                      R←4 0
+                  :EndIf
+              :Else
+                  res←hdr SendMail(mail)(⍙'emailConfirm_mismatch_tit')(⍙'statusNotChanged_body')
+                  R←2 0
+                  →0
+              :EndIf
+          :EndSelect
+      :EndIf
+      :If 0≠⊃res
+          'ERR' 'SMTP'Log'SendMail failed, rc=',⍕res
+      :EndIf
+      :If sub≢sub∆
+          (⊂(⎕JSON ⎕OPT'Compact' 0)sub)⎕NPUT file 1
+      :EndIf
+    ∇
+
+
+    ∇ sub←GetSubscribers mode;c;file;config;blacklist
+      :Access public
+⍝ mode=0: only active recipients(confirmed)
+⍝      1:      inactive
+⍝      2:      ALL
+⍝      3: possible senders (confirmed and not paused, also alternative mailadresses included)
+⍝         NB: this creates additional records where all alternative emails
+⍝             are converted to primary...
+      config←('#.Triggers.Config.',cfg.id)⍎'config'
+      blacklist←GetBlacklist
+      file←config.Folder,'subscribers.json'
+      :If ⎕NEXISTS file
+          sub←(⎕JSON⍠'Dialect' 'JSON5')1⊃⎕NGET file
+          :If mode∊0 3
+              sub←(∊{2=⍵.⎕NC'confirmed'}¨sub)/sub
+              sub←(∊{2=⍵.⎕NC'disabled':~⍵.disabled ⋄ 1}¨sub)/sub
+              sub←(∊{2=⍵.⎕NC'enabled':⍵.enabled ⋄ 1}¨sub)/sub
+          :EndIf
+          :If mode=3
+              :For c :In sub
+                  :If 2=c.⎕NC'alternative_email'
+                      sub←sub,c{
+                          a←⍺.⎕NS'confirmed' 'name'
+                          a.email←⍵
+                          a
+                      }¨⊆c.alternative_email
+                  :EndIf
+              :EndFor
+          :EndIf
+      :Else
+          sub←⍬
+      :EndIf
+      sub←⎕JSON ⎕JSON sub  ⍝ clone it...
+      :If 0<≢blacklist
+          sub←(~sub.email∊⍥⎕C blacklist.email)/sub
+      :EndIf
+    ∇
+
+    ∇ z←{opt}IsSubscriber email;sub;blacklist
+      ⍝ is email a confirmed subscriber?
+      ⍝ opt=0 (default): include alternative email addresses to identify subscriber
+      ⍝     1: only use primary email address
+      :Access public
+      :If 0=⎕NC'opt'
+          opt←0
+      :EndIf
+      sub←GetSubscribers 1+2×opt=0
+      :If 0=≢sub
+          z←0
+          →0
+      :EndIf
+      z←(⊆#.getMaddr email)∊⍥⎕C sub.email
+      blacklist←GetBlacklist   ⍝ never accept emails from blacklisted addresses
+      :If z
+      :AndIf 0<≢blacklist
+          z←~(⊆#.getMaddr email)∊⍥⎕C blacklist.email
+      :EndIf
+      'DBG' 'SYS'Log'[IsSubscriber] ',(⍕email),' → ',⍕z
+      ⍝ wait for it...
+     
+    ∇
+
+    ∇ z←IsAdmin email;sub;adminEmails
+      :Access public
+      'DBG' 'SYS'Log'IsAdmin, email=',email
+      adminEmails←#.getMaddr¨,⊆cfg.admin_accounts   ⍝ always a nested vector (works for 1 or N admins)
+      :If ~z←(email←⊆' '~⍨⎕C #.getMaddr email)∊adminEmails     ⍝ direct match against admin accounts?
+      ⍝ check if the email belongs to a subscriber whose primary email is an admin account
+          sub←GetSubscribers 2
+          sub←({(⊂⎕C ⍵.email)∊adminEmails}¨sub)/sub   ⍝ primary email (lowercased) must be in admin_accounts
+          :If 0=≢sub
+              z←0
+              →0
+          :EndIf
+          sub←⊃,/{6::⊆⍵.email ⋄ (⊆⍵.email)∪⎕C⊆⍵.alternative_email}¨sub
+          z←email∊sub
+      :EndIf
+      'DBG' 'SYS'Log'IsAdmin "',(⊃email),'" =',⍕z
+    ∇
+
+    ∇ z←GetData email;sub
+      :Access public
+      ⍝ return user's data (the full JSON data)
+      ⍝ z=0 indicates no data (should not happen)
+      ⍝ if we don't find the email directly
+     
+      ⍝ check if the email has alternatives that are admins...
+      sub←GetSubscribers 2
+      :If 0=≢sub
+          z←0
+          →0
+      :EndIf
+      z←sub{(⊂⍵)∊⍥⎕C(⍺{0=⍺.⎕NC'alternative_email':⊆⍺.email ⋄ (⊆⍺.email),⊆⍺.alternative_email}⍺)}¨⊂#.getMaddr email
+      :If 1∊z
+          z←(z⍳1)⊃sub
+      :Else
+          z←0
+      :EndIf
+    ∇
+
+    ∇ r←isAdmin BuildStatsTable msg_count;cv;n;i;body;html;blacklist;root;di;proc;t1;t2;pc;procCpuPct;sysCpuPct;procRAM;totalRAM;gcinfo;sha;sha7;commit_url;commit_html;EncH;rdStat;s1;s2
+      :Access public
+      ⍝ Builds a 2-column statistics table (plain text + HTML).
+      ⍝ isAdmin: 1=Admin (additional lines), 0=regular subscriber
+      ⍝ msg_count: data.count from UserAction
+      ⍝ r: 2-element vector (plain text ; HTML)
+      cv←⍙'stats_labels'                          ⍝ Base rows (for all users)
+      n←msg_count(≢GetSubscribers 0)(≢GetSubscribers 2)
+      n,←⊂¯3↓RMB∊(⍕¨(20 ⎕DT⊂⎕TS)DateDiff #.launchTS),¨⊂' / '
+      n,←⊂'Dyalog APL ',(1⊃'.'⎕WG'APLVersion'),' ',2⊃'.'⎕WG'APLVersion'
+      n,←⊂#.Config.version
+      commit_html←''                                       ⍝ HTML-only link for commit row (empty = no override)
+      :If isAdmin
+          ⎕USING∪←⊂'System.IO,System.IO.FileSystem.DriveInfo'
+          root←Path.GetPathRoot⊂#.Home
+          di←⎕NEW DriveInfo(⊂root)
+     
+          blacklist←GetBlacklist
+          cv,←⊆⍙'stats_labels_admin'               ⍝ Append admin-only rows
+          n,←≢blacklist
+          n,←⊂¯3↓RMB∊(⍕¨⌊0.5+((2000⌶)1 14 0)÷2*20),¨⊂' / '
+          n,←⊂#.Home
+          n,←⊂di.Name
+          n,←⊂' '~⍨,'S<,.>CI15'⎕FMT(di.TotalSize÷2*30)
+          n,←⊂' '~⍨' '~⍨,'S<,.>CI15'⎕FMT di.AvailableFreeSpace÷2*30
+          ⍝ Process RAM, process CPU, and system-wide CPU via .NET Diagnostics
+          :Trap 0
+              ⎕USING∪←⊂'System.Diagnostics,System.Diagnostics.Process'
+              ⎕USING∪←⊂'System,System.Runtime'
+              proc←Process.GetCurrentProcess
+              :If 'win'≡⎕C 3↑1⊃'.'⎕WG'APLVersion'
+                  ⍝ Windows: system-wide CPU via PerformanceCounter
+                  ⎕USING∪←⊂'System.Diagnostics,System'
+                  pc←⎕NEW PerformanceCounter('Processor' '% Processor Time' '_Total')
+                  {}pc.NextValue                      ⍝ first call always returns 0 – discard
+                  t1←{⍵.TotalMilliseconds}proc.TotalProcessorTime
+                  {}⎕DL 0.1                          ⍝ shared 100ms sample window
+                  proc.Refresh
+                  t2←{⍵.TotalMilliseconds}proc.TotalProcessorTime
+                  procCpuPct←0.1×⌊0.5+1000×(t2-t1)÷100×Environment.ProcessorCount
+                  sysCpuPct←0.1×⌊0.5+10×pc.NextValue
+                  pc.Dispose
+              :Else
+                  ⍝ Linux: system-wide CPU via /proc/stat (two readings over 100ms)
+                  rdStat←{1↓2⊃⎕VFI⊃⊃⎕NGET'/proc/stat' 1}
+                  s1←rdStat ⍬
+                  t1←{⍵.TotalMilliseconds}proc.TotalProcessorTime
+                  {}⎕DL 0.1                          ⍝ shared 100ms sample window
+                  proc.Refresh
+                  t2←{⍵.TotalMilliseconds}proc.TotalProcessorTime
+                  procCpuPct←0.1×⌊0.5+1000×(t2-t1)÷100×Environment.ProcessorCount
+                  s2←rdStat ⍬
+                  sysCpuPct←(+/s2-s1){0=⍺:0 ⋄ 0.1×⌊0.5+1000×(⍺-4⊃⍵)÷⍺}s2-s1
+              :EndIf
+              procRAM←⌊0.5+proc.WorkingSet64÷2*20   ⍝ process working set in MB
+              totalRAM←{0::0 ⋄ (GC.GetGCMemoryInfo ⍬).TotalAvailableMemoryBytes}⍬
+              :If 0<totalRAM
+                  n,←⊂(⍕procRAM),' MB / ',(⍕0.1×⌊0.5+1000×proc.WorkingSet64÷totalRAM),'%'
+              :Else
+                  n,←⊂(⍕procRAM),' MB'
+              :EndIf
+              n,←⊂(⍕procCpuPct),'%'
+              n,←⊂(⍕sysCpuPct),'%'
+          :Else
+              'ERR' 'SYS'Log'BuildStatsTable cpu/ram: ',⎕JSON ⎕DMX
+              n,←⊂'N/A'
+              n,←⊂'N/A'
+              n,←⊂'N/A'
+          :EndTrap
+          ⍝ OS information
+          :If 'win'≡⎕C 3↑1⊃'.'⎕WG'APLVersion'
+              :Trap 0
+                  ⎕USING∪←⊂'System.Runtime.InteropServices,System.Runtime'
+                  n,←⊂⍕RuntimeInformation.OSDescription
+              :Else
+                  'ERR' 'SYS'Log'BuildStatsTable os: ',⎕JSON ⎕DMX
+                  n,←⊂'N/A'
+              :EndTrap
+          :Else
+              n,←⊂{0::'' ⋄ ∊⎕SH ⍵}'uname -srvm'
+          :EndIf
+          ⍝ Current git commit SHA with link to GitHub
+          :Trap 0
+              sha←⊃⎕SH'git -C "',#.Home,'" rev-parse HEAD'
+              sha←sha~' ',⎕UCS 10 13                      ⍝ strip trailing whitespace
+              sha7←7↑sha                                   ⍝ short SHA (7 chars)
+              commit_url←'https://github.com/',(1⊃#.Config.repo),'/',(2⊃#.Config.repo),'/commit/',sha
+              commit_html←'<a href="',commit_url,'">',sha7,'</a>'
+              cv,←⊆⍙'stats_labels_commit'
+              n,←⊂sha7
+          :Else
+              'ERR' 'SYS'Log'BuildStatsTable git-sha: ',⎕JSON ⎕DMX
+              cv,←⊆⍙'stats_labels_commit'
+              n,←⊂'N/A'
+              commit_html←'N/A'
+          :EndTrap
+      :EndIf
+      ⍝ 2-column plain-text table: left column aligned to max label width
+      body←(⍙'stats_intro'),CR,∊((2+⌈/≢¨cv)↑¨cv),¨(⍕¨n),¨⊂CR
+      ⍝ HTML-encode special chars in labels/values (umlauts, &) — plain text uses raw strings
+      EncH←('[&äöüÄÖÜß]'⎕R{('&amp;' '&auml;' '&ouml;' '&uuml;' '&Auml;' '&Ouml;' '&Uuml;' '&szlig;')⊃⍨'&äöüÄÖÜß'⍳⊃⍵.Match})
+      ⍝ HTML table with alternating row colors
+      html←'<table style="border:1px solid #8aa7cc;border-collapse:collapse;font-family:''Lucida Console'',Monaco,monospace;color:#1a2a3a;" cellpadding="8">',LF
+      html,←'<thead>'
+      html,←'<tr style="background:#dbe6f5;border-bottom:2px solid #8aa7cc;"><th align="center" colspan="2" style="font-weight:700;color:#1a2a3a;">',(⍙'stats_title'cfg.list_name),'</th></tr>',LF
+      html,←'</thead>'
+      html,←'<tbody>'
+      :For i :In ⍳≢cv
+          html,←'<tr style="background-color:',((1+2|i)⊃'#e9f0fa' '#f7f9fc'),'"><td>',(EncH i⊃cv),'</td><td align="right">',((1+(i=≢n)∧0<≢commit_html)⊃(EncH⍕i⊃n)(commit_html)),'</td></tr>',LF
+      :EndFor
+      html,←'</tbody>'
+      html,←'</table>'
+      r←body html
+    ∇
+
+
+    ∇ UserAction E;cmd;sel;expr;mt;e;a1;a2;data_folder;file;data;z;p;Mid;log;msg;warn;bhdt;msg_t;mmsg;email;hd;h;orig_from;O;tb;tt;hb;ht;tit;part;txt;i;len;multiparts;attachments;iter;multipart;bod;html;sub;digest_body;digest_html;digest_tit;cmd1;d;cv;cm;new;fld;newval;blacklist;file_eml;all_emails;trail;raw;keep;tokens;tok;ab;a;b;n;t;missing;mixed;mp;pt;getmsgs_count;intro;dashpos;row;prefix;plain;purl;replyTo
+      :Access public
+      sub←GetSubscribers 3 ⍝ get subscribers
+      p←⎕NPARTS E.Filename
+      data_folder←(1⊃⎕NPARTS ¯1↓1⊃p),'archive/'
+      file←data_folder,'data.json5'
+      data←(⎕JSON⍠'Dialect' 'JSON5')1⊃(⎕NGET)file
+      Mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'   ⍝ original msg id that we may need to reply to...
+      prefix←'[',cfg.list_name,'] '
+      ⍝ undocumented: admin can append >other@example.com to subject to redirect reply
+      replyTo←E.sender
+      :If IsAdmin E.sender
+          :If (1<≢t)∧'>'=⊃⊃⌽t←' '(≠⊆⊢)E.subject
+              replyTo←1↓⊃⌽t
+              E.subject←('\s*>[^\s]+$'⎕R'')E.subject
+          :EndIf
+      :EndIf
+      ⍝ Rate-limiting: reject request if sender sends too many commands in a short time
+      :If ~CheckRateLimit E.sender
+          'WARN' 'SEC'Log'Rate limit exceeded'(⊆E.sender)
+          ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'ratelimit_reply')
+          →0
+      :EndIf
+      ⍝ Reset bounce counter: active communication proves address is reachable
+      ResetBounce E.sender
+      :For cmd :In (⎕UCS 10)#.split E.subject,(⎕UCS 10),E.Text~⎕UCS 13
+          :Select cmd1←1 ⎕C #.Word cmd
+          :Case ⍙'cmd_getmydata'
+              d←GetData E.sender
+              :If d≢0
+                  all_emails←(⊆d.email),(2=d.⎕NC'alternative_email')/⊆d.alternative_email
+                  d.⎕EX(d.⎕NL-2)~'name' 'alternative_email'  ⍝ hide irrelevant fields in user msg
+                  :If 0=d.⎕NC'alternative_email'   ⍝ be sure to include alt email
+                      d.alternative_email←''
+                  :EndIf
+                  d←(⎕UCS 13)#.split(⎕JSON ⎕OPT'Compact' 0)d
+                  cv←⍙'getmydata_comments'
+                  cm←(⌽2,0.5×≢cv)⍴cv
+                  d←{t←⊃('"([^"]+)":'⎕S'\1')⍵ ⋄ 0=≢t:⍵ ⋄ i←cm[;1]⍳⊂t ⋄ i>≢cm:⍵ ⋄ ⍵,'  // ',i⊃cm[;2]}¨d
+                  trail←GetAuditTrail all_emails
+                  :If 0<≢trail
+                      d←d,(⊂''),(⊂'// Action log (DSGVO Art. 15):'),trail
+                  :EndIf
+                  ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(d)
+              :EndIf
+     
+          :Case ⍙'cmd_setmydata'
+              d←GetData E.sender
+              :If d≡0 ⋄ →0 ⋄ :EndIf
+              log←''
+              txt←E.Text~CR
+              txt←((txt⍳'{')-1)↓((≢txt)+1-(⌽txt)⍳'}')↑txt
+              :Trap 0
+                  new←(⎕JSON⍠'Dialect' 'JSON5')txt
+              :Else
+                  ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setmydata_err_json')
+                  →0
+              :EndTrap
+              :For fld :In 'name' 'alternative_email' 'disabled' 'enabled'
+                  :If 2=new.⎕NC fld
+                      newval←new⍎fld
+                      :If (2≠d.⎕NC fld)∨newval≢d⍎fld
+                          log,←CR,fld,': ',(2=d.⎕NC fld)/(⎕JSON⍠'Compact' 1)d⍎fld
+                          log,←(2=d.⎕NC fld)/' → '
+                          log,←(⎕JSON⍠'Compact' 1)newval
+                          :Select fld
+                          :Case 'name' ⋄ d.name←newval
+                          :Case 'alternative_email' ⋄ d.alternative_email←newval
+                          :Case 'disabled' ⋄ d.disabled←newval
+                          :Case 'enabled' ⋄ d.enabled←newval
+                          :EndSelect
+                      :EndIf
+                  :EndIf
+              :EndFor
+              :If 0<≢log
+                  d SaveSubscriber
+                  'INFO' 'SUB'Log('setmydata: ',log)(⊆d.email)
+                  ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)((⍙'setmydata_reply'),log)
+              :Else
+                  ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setmydata_no_changes')
+              :EndIf
+     
+          :Case ⍙'cmd_deleteme'  ⍝ GDPR Art. 17 – Right to erasure
+              d←GetData E.sender
+              mail←E.sender  ⍝ Fallback address (in case record was already deleted via UNSUBSCRIBE)
+              :If d≢0
+                  ⍝ 1. Remove subscriber record
+                  z←GetSubscribers 2
+                  z←(~z.email∊⍥⎕C⊂d.email)/z
+                  (⊂(⎕JSON⍠'Compact' 0)z)⎕NPUT(CFG.config.Folder,'subscribers.json')1
+                  ⍝ 2. Delete blacklist entry (if present)
+                  blacklist←GetBlacklist
+                  :If 0<≢blacklist
+                      blacklist←(~blacklist.email∊⍥⎕C⊂d.email)/blacklist
+                      (⊂(⎕JSON⍠'Compact' 0)blacklist)⎕NPUT(CFG.config.Folder,'blacklist.json')1
+                  :EndIf
+                  ⍝ all_emails: primary + possible alternative addresses (may appear as sender in archive)
+                  all_emails←(⊆d.email),(2=d.⎕NC'alternative_email')/⊆d.alternative_email
+                  mail←d.email
+              :Else
+                  ⍝ No record found (e.g. after UNSUBSCRIBE) – anonymize archive anyway
+                  all_emails←⊆⎕C E.sender
+              :EndIf
+              ⍝ 3. Anonymize archive metadata + .eml From header
+              :For i :In ⍳data.count
+                  file←data_folder,(⍕i),'.json5'
+                  :If ⎕NEXISTS file
+                      O←⎕JSON 1⊃⎕NGET file
+                      :If (⊆⎕C #.getMaddr O.sender)∊⎕C¨all_emails
+                          O.sender←'[deleted]'
+                          (⊂(⎕JSON⍠'Compact' 0)O)⎕NPUT file 1
+                          file_eml←data_folder,(⍕i),'.eml'
+                          :If ⎕NEXISTS file_eml
+                              mmsg←⎕NEW MimeMessage
+                              email←mmsg.Load file_eml CancellationToken
+                              email.From.Clear
+                              email.From.Add(⎕NEW MailboxAddress'[deleted]' 'deleted@deleted.invalid')
+                              email.WriteTo file_eml CancellationToken
+                          :EndIf
+                      :EndIf
+                  :EndIf
+              :EndFor
+              ⍝ 4. Clean up audit log: remove all entries for these addresses (GDPR Art. 17)
+              'INFO' 'SUB'Log'deleteme'(⊆mail)  ⍝ log first (also ends up in the daily log)
+              file←CFG.config.Folder,'audit.jsonl'
+              :If ⎕NEXISTS file
+                  raw←(⎕UCS 10)#.split(1⊃⎕NGET file)~⎕UCS 13
+                  raw←(0<≢¨raw)/raw
+                  keep←{0::1 ⋄ O←⎕JSON ⍵ ⋄ 2=O.⎕NC'email':~(⊂⎕C O.email)∊⎕C¨all_emails ⋄ 1}¨raw
+                  (⊂∊(keep/raw),¨⊂⎕UCS 10)⎕NPUT file 1
+              :EndIf
+              ⍝ 5. Confirmation email
+              SendMail mail(⍙'deleteme_tit')(⍙'deleteme_reply')
+              →0
+     
+          :Case ⍙'cmd_nomail'
+              d←GetData E.sender
+              :If d≡0 ⋄ →0 ⋄ :EndIf
+              d.disabled←1
+              d SaveSubscriber
+              'INFO' 'SUB'Log'nomail'(⊆d.email)
+              ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'nomail_reply')
+     
+          :Case ⍙'cmd_mail'
+              d←GetData E.sender
+              :If d≡0 ⋄ →0 ⋄ :EndIf
+              d.disabled←0
+              d SaveSubscriber
+              'INFO' 'SUB'Log'mail'(⊆d.email)
+              ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'mail_reply')
+     
+          :Case ⍙'cmd_unsubscribe'
+              ⍝ Delete record – no confirmation needed (sender = address owner)
+              ⍝ Archive anonymization only on explicit DELETEME request (GDPR Art. 17)
+              d←GetData E.sender
+              :If d≢0
+                  z←GetSubscribers 2
+                  z←(~z.email∊⍥⎕C⊂d.email)/z
+                  (⊂(⎕JSON⍠'Compact' 0)z)⎕NPUT(CFG.config.Folder,'subscribers.json')1
+                  'INFO' 'SUB'Log'unsubscribe'(⊆d.email)
+              :EndIf
+              ('In-Reply-To'Mid)SendMail replyTo(⍙'unsubscribe_tit'cfg.list_name)(⍙'unsubscribe_reply'cfg.list_name)
+     
+          :Case ⍙'cmd_stats'
+              digest_body digest_html←(IsAdmin E.sender)BuildStatsTable data.count
+              ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)digest_body digest_html
+     
+          :Case ⍙'cmd_help'
+              plain←⍙'help_plain'
+              html←⍙'help_html'
+              :If IsAdmin E.sender
+                  plain,←⍙'help_admin_plain'
+                  html,←⍙'help_admin_html'
+              :EndIf
+              plain←∊plain,⊂⎕UCS 10
+              html←∊html,⊂⎕UCS 10
+              ('In-Reply-To'Mid)SendMail replyTo('[',CFG.handler_cfg.list_name,']',⍙'helptit')plain html
+     
+          :CaseList ⍙¨(⊂'cmd_'),¨('list' 'get'),¨⊂'msgs'  ⍝ GETMSGS | LISTMSGS
+              expr←(cmd⍳' ')↓cmd  ⍝ selection of relevant msgs
+              log←''
+              digest_body←''
+              digest_html←'<table style="border:1px solid black;border-collapse:collapse;" cellpadding="8"><tr style="background-color:#ddd;"><th>#</th><th>Date</th><th>From</th><th>Subject</th></tr>'
+              digest_tit←prefix,(⍙'Re'),E.subject
+              :If 0=≢expr
+              :AndIf cmd1 ⎕C⍥≡⍙'cmd_listmsgs'
+                  expr←'-',⍕data.count   ⍝ default: list all messages
+              :EndIf
+              :If 0=≢expr
+                  log,←'No details given, unsure what to do'
+              :Else
+                  ⍝ Parse expression: individual numbers and ranges (n-m), freely combinable
+                  ⍝ Examples: "5"  "1 2 4"  "4-7"  "1 2 4-7 9"  "-7"  "5-"
+                  expr←('(\d)\s*-\s*(\d)'⎕R'\1-\2'⍠'Mode' 'D')expr  ⍝ "4 - 7" → "4-7"
+                  tokens←(0<≢¨t)/(t←' '#.split expr)
+                  sel←⍬
+                  :For tok :In tokens
+                      :If '-'∊tok              ⍝ Range, e.g. "4-7", "-7" or "5-"
+                          dashpos←tok⍳'-'      ⍝ Position of the first dash
+                          a←⊃2⊃⎕VFI(dashpos-1)↑tok   ⍝ → 0 if empty (e.g. "-7")
+                          b←⊃2⊃⎕VFI dashpos↓tok       ⍝ → 0 if empty (e.g. "5-")
+                          :If a=0 ⋄ a←1 ⋄ :EndIf
+                          :If b=0 ⋄ b←data.count ⋄ :EndIf
+                          sel,←(a-1)↓⍳b
+                      :Else                    ⍝ Single number
+                          :If 0<≢n←2⊃⎕VFI tok
+                              sel,←n
+                          :EndIf
+                      :EndIf
+                  :EndFor
+                  sel←{⍵[⍋⍵]}∪sel             ⍝ deduplicate and sort
+                  z←(sel≤data.count)∧sel>0
+                  warn←(0∊z)/⍙'reply_getmsgs_err'expr(⍕(~z)/sel)data.count
+                  log,←warn
+                  missing←⍬
+                  getmsgs_count←0
+                  row←0
+                  :If cmd1≡⍙'cmd_getmsgs'
+                          ⍝ One-time: compute footer and build outer multipart with intro
+                      d h m←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
+                      hb←⍙'add_bot_html'd h m #.Config.version
+                      tb←⍙'add_bot_text'd h m #.Config.version
+                      :If 0<≢purl←{6::'' ⋄ cfg.##.handler_cfg.privacy_url}⍬
+                          hb,←⊂⍙'privacy_link_html'purl
+                          tb,←⊂⍙'privacy_link_text'purl
+                      :EndIf
+                      hb tb←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}¨hb tb
+                      intro←⎕NEW BodyBuilder
+                      intro.TextBody←({1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}⍙'reply_getmsgs'(E.subject)(E.date)(expr)),tb
+                      intro.HtmlBody←({1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}⍙'reply_getmsgs_html'(E.subject)(E.date)(expr)),hb
+                      mixed←⎕NEW MimeKit.Multipart(⊂'mixed')
+                      mixed.Add intro.ToMessageBody
+                  :EndIf
+                  :For z :In sel
+                      msg←''
+                      file←data_folder,(⍕z),'.eml'
+                      :If ⎕NEXISTS file  ⍝ read original message
+                      :AndIf ⎕NEXISTS∊(2↑⎕NPARTS file)'.json5'
+                          O←⎕JSON 1⊃⎕NGET data_folder,(⍕z),'.json5'
+                          :If cmd1≡⍙'cmd_getmsgs'
+                              mmsg←⎕NEW MimeMessage
+                              email←mmsg.Load file CancellationToken
+                              orig_from←#.getMaddr O.sender
+                              :If (⊂orig_from)∊⍥⎕C sub.email
+                                  orig_from←sub{(⍺.email⍳⍥⎕C ⍵)⊃⍺}⊆#.getMaddr orig_from
+                                  orig_from←orig_from.name
+                              :EndIf
+                                  ⍝ Per message: add_top_html with date and sender of the archived message
+                              ht←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}⍙'add_top_html'(⍕email.Date.DateTime)(orig_from)
+                                  ⍝ Subject of the embedded message (with prefix)
+                              tit←(⍙'mailPrefix_tit'(cfg.name_short)(⍕z)),' ',O.subject
+                                  ⍝ Check attachments and remove if necessary
+                              txt←''
+                              len←0
+                              attachments←multiparts←⍬
+                              iter←⎕NEW MimeKit.MimeIterator email
+                              :While iter.MoveNext
+                                  part←iter.Current
+                                  multipart←iter.Parent
+                                  :If multipart≢⎕NULL
+                                  :AndIf part≢⎕NULL
+                                  :AndIf part.IsAttachment
+                                      multiparts,←multipart
+                                      attachments,←part
+                                      len+←part.Content.Stream.Length
+                                  :EndIf
+                              :EndWhile
+                              :If ~cfg.attachments
+                              :OrIf len{6::0 ⋄ ⍺>⍎⍵}'cfg.attachments_maxbytes'
+                                  :For i :In ⍳≢attachments
+                                      txt,←⊂attachments[i].FileName
+                                      multiparts[i].Remove attachments[i]
+                                  :EndFor
+                                  :If 0<≢txt
+                                      :If ~cfg.attachments
+                                          msg←' ',⍙'Subj_WarningNoAtt'(¯1↓∊txt,¨'+')
+                                      :Else
+                                          msg←' ',⍙'Subj_WarningAtt'(¯1↓∊txt,¨'+')(⍕len)(⍕cfg.attachments_maxbytes)
+                                      :EndIf
+                                      tit,←msg
+                                  :EndIf
+                              :EndIf
+                              email.Subject←tit
+                                  ⍝ HTML parts: fade + insert ht/hb
+                              :For part :In email.BodyParts
+                                  :If part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
+                                  :AndIf ~part.IsAttachment
+                                      pt←part.Text
+                                          ⍝ Existing Alisia header/footer: apply depth-dependent style
+                                      :If (∨/'alisia_header'⍷pt)∨(∨/'linear-gradient'⍷pt)∧∨/'Lucida'⍷pt
+                                          'DBG' 'SYS'Log'[GETMSGS fade] alisia_header/Lucida-Gradient found – adjusting styles'
+                                          st←GetStyles
+                                          pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                                      :EndIf
+                                          ⍝ Insert ht/hb into HTML
+                                      :If ∨/'<body'⍷⎕C pt
+                                          pt←('<body([^>]*)>'⎕R('<body\1>',CRLF,ht,CRLF)⍠('IC' 1)('Mode' 'D'))pt
+                                          pt←('</body>'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
+                                      :Else
+                                          pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
+                                      :EndIf
+                                      part.Text←pt
+                                  :EndIf
+                              :EndFor
+                                  ⍝ Add as message/rfc822 attachment to multipart
+                              mp←⎕NEW MimeKit.MessagePart
+                              mp.Message←email
+                              mixed.Add mp
+                              getmsgs_count+←1
+                              'INFO' 'SYS'Log'GETMSGS #',(⍕z),': "',O.subject,'" von ',O.sender
+                          :ElseIf cmd1≡⍙'cmd_listmsgs'
+                              row+←1
+                              digest_html,←'<tr style="background-color:',((1+2|row)⊃'#ffffff' '#f2f2f2'),'"><td>',(⍕z),'</td><td>',O.date,'</td><td>',O.sender,'</td><td>',O.subject,'</td></tr>',LF
+                              digest_body,←(⍕z),': ',O.sender,' / ',O.subject,LF
+                          :EndIf
+                      :Else
+                          'WARN' 'SYS'Log'msg #',(⍕z),' not found: ',file
+                          missing,←z
+                      :EndIf
+                  :EndFor
+                  :If 0<≢missing
+                  :AndIf cmd1≡⍙'cmd_getmsgs'  ⍝ report missing messages only for GETMSGS
+                      warn,←(0<≢warn)/CR
+                      warn,←⍙'getmsgs_not_found'(⍕missing)
+                  :EndIf
+                  :If 0<≢warn
+                      ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⊆warn)
+                  :EndIf
+                  :If cmd1≡⍙'cmd_getmsgs'
+                      :If 0<getmsgs_count
+                          mmsg←⎕NEW MimeMessage
+                          mmsg.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+                          mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse⊂replyTo).Address))
+                          mmsg.Subject←prefix,(⍙'Re'),E.subject
+                          mmsg.Body←mixed
+                          ('In-Reply-To'Mid)SendMimeMsg mmsg
+                          'INFO' 'SYS'Log'GETMSGS-Mail gesendet: ',(⍕getmsgs_count),' Nachrichten'
+                      :EndIf
+                  :ElseIf 0<≢digest_body
+                      digest_html←2 3 #.Code.AddRowSpan digest_html
+                      ('In-Reply-To'Mid)SendMail replyTo digest_tit digest_body digest_html
+                  :EndIf
+              :EndIf
+          :EndSelect
+      :EndFor
+    ∇
+
+    ∇ AdminAction E;t;arg;mail;h;txt;fn;rc;mid;sub;i;s;si;status;jdate;ts;name;body;html;cols;prefix;n;filt;lines;entry;bg;EncL;cf;log;new;newval;replyTo
+      :Access public
+      prefix←'[',cfg.list_name,'] '
+      mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
+      E←⎕JSON ⎕JSON E  ⍝ make sure we don't work on a ref (which would affect the alling fn)
+      txt←E.Text  ⍝ does it contain mailaddresses?
+      txt←((⎕UCS 10)(≠⊆⊢)txt)~¨⎕UCS 13
+      h←¯1+(∊≢¨txt)⍳0
+      mail←∪('(?:<a href="mailto:)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)(?:">\\1</a>)?'⎕S'\1')h↑txt
+      E.Text←∊((('(?:<a href="mailto:)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)(?:">\\1</a>)?'⎕R'')h↑txt),(h+1)↓txt),¨⊂CRLF
+      ⍝ TODO: Html replacement needs improvement since it scans complete text - should stop after last mailaddress!
+      E.Html←('(<a href="mailto:([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)">\2</a>)|([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)'⎕R'')E.Html
+      arg←' '∘(1↓,⊢⍤/⍨1(⊢∨⌽)0,≠)E.subject,∊' ',¨mail
+      t←' '(≠⊆⊢)arg
+      ⍝ undocumented: append >other@example.com to subject/body to redirect reply
+      replyTo←E.sender
+      :If (1<≢t)∧'>'=⊃⊃⌽t
+          replyTo←1↓⊃⌽t
+          t←¯1↓t
+          E.subject←('\s*>[^\s]+$'⎕R'')E.subject
+      :EndIf
+      E.sender←replyTo
+      :If 0<≢t
+          ⎕←StartOfLog←∊'AdminAction: ',E.(subject,' ',sender' ',⍕ticks)
+          'INFO' 'ADM'Log StartOfLog
+          :Select ⎕C 1⊃t
+          :Case ⎕C ⍙'cmd_subscribe'
+              E.SubscriberOpts←4
+              E AddSubscriber¨1↓t
+          :Case ⎕C ⍙'cmd_unsubscribe'
+              ⍝ Delete subscriber record(s) for specified addresses (no archive anonymization)
+              :For si :In 1↓t
+                  z←GetSubscribers 2
+                  :If ∨/z.email∊⍥⎕C⊂si
+                      z←(~z.email∊⍥⎕C⊂si)/z
+                      (⊂(⎕JSON⍠'Compact' 0)z)⎕NPUT(CFG.config.Folder,'subscribers.json')1
+                      'INFO' 'ADM'Log'unsubscribe'(⊆si)
+                  :Else
+                      'WARN' 'ADM'Log'unsubscribe-not-found'(⊆si)
+                  :EndIf
+              :EndFor
+          :Case ⎕C ⍙'cmd_listmembers'
+              mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
+              sub←GetSubscribers 2          ⍝ all subscribers including unconfirmed
+              adminAcc←#.getMaddr¨,⊆cfg.admin_accounts  ⍝ lowercase addresses of admins
+              emails←⎕C¨sub.email
+              isAdms←emails∊adminAcc
+              sub←sub[⍋(⊂¨⎕UCS 48+~isAdms),¨emails]  ⍝ admins ('0'+email) first, then rest ('1'+email), each alphabetically
+              cols←⍙'listmembers_cols'
+              thresh←3  ⍝ bounce threshold (same value as in RecordBounce)
+              body←(⍙'listmembers_intro'(≢sub)),CR
+              html←'<table style="border:1px solid #8aa7cc;border-collapse:collapse;font-family:''Lucida Console'',Monaco,monospace;color:#1a2a3a;" cellpadding="8">',LF
+              html,←'<thead><tr style="background:#dbe6f5;border-bottom:2px solid #8aa7cc;">'
+              html,←'<th style="font-weight:700;padding:6px 10px;" colspan="',(⍕≢cols),'">',(⍙'listmembers_title'cfg.list_name),'</th></tr>',LF
+              html,←'<tr style="background:#dbe6f5;border-bottom:2px solid #8aa7cc;">'
+              html,←∊{'<th style="font-weight:700;padding:6px 10px;">',⍵,'</th>'}¨cols
+              html,←'</tr></thead><tbody>',LF
+              :For i :In ⍳≢sub
+                  s←i⊃sub
+                  name←{2=⍵.⎕NC'name':⍵.name ⋄ ''}s
+                  isAdm←(⊂⎕C s.email)∊adminAcc
+                  :If 2=s.⎕NC'confirmed'
+                      jdate←⊃'%ISO%'(1200⌶)s.confirmed
+                  :Else
+                      jdate←'—'
+                  :EndIf
+                  :If 0=s.⎕NC'confirmed'
+                      si←4  ⍝ Unconfirmed
+                  :ElseIf s{6::0 ⋄ ⍺⍎⍵}'disabled'
+                      si←2  ⍝ Deactivated
+                  :ElseIf ~s{6::1 ⋄ ⍺⍎⍵}'enabled'
+                      si←3  ⍝ Paused
+                  :Else
+                      si←1  ⍝ Active
+                  :EndIf
+                  status←si⊃⍙'listmembers_statuses'
+                  bnc←{2=⍵.⎕NC'bounces':⍵.bounces ⋄ 0}s
+                  bstr←(1+bnc=0)⊃(⍕bnc)'-'
+                  body,←(isAdm/'★ '),name,' <',s.email,'> | ',status,' | ',jdate,' | ',bstr,CR
+                  html,←'<tr style="background-color:',((1+2|i)⊃'#e9f0fa' '#f7f9fc'),'">',LF
+                  html,←'<td style="padding:6px 10px;',(isAdm/'font-weight:700;'),'">',((isAdm/'★ '),name),'</td>'
+                  html,←'<td style="padding:6px 10px;"><a href="mailto:',s.email,'">',s.email,'</a></td>'
+                  html,←'<td style="padding:6px 10px;">',status,'</td>'
+                  html,←'<td style="padding:6px 10px;">',jdate,'</td>'
+                  html,←('<td style="padding:6px 10px;',(bnc≥thresh)/'color:#cc2200;font-weight:bold;'),'">',bstr,'</td>'
+                  html,←'</tr>',LF
+              :EndFor
+              html,←'</tbody></table>'
+              ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)body html
+          :Case ⎕C ⍙'cmd_enable'
+              ⍝ Reactivate a deactivated subscriber and reset their bounce counter.
+              ⍝ Syntax: ENABLE subscriber@mail.de  (in subject or mail body)
+              :For si :In 1↓t
+                  sub←GetSubscribers 2
+                  i←sub.email⍳⍥⎕C⊂si
+                  :If i>≢sub
+                      'WARN' 'ADM'Log'enable: not found'(⊆si)
+                      ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'enable_notfound'si)
+                  :Else
+                      s←i⊃sub
+                      s.disabled←0
+                      s.bounces←0
+                      sub[i]←⊂s
+                      (⊂(⎕JSON⍠'Compact' 0)sub)⎕NPUT(CFG.config.Folder,'subscribers.json')1
+                      'INFO' 'ADM'Log'enable: reactivated + bounce counter reset'(⊆si)
+                      ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'enable_ok'si)
+                  :EndIf
+              :EndFor
+          :Case ⎕C ⍙'cmd_log'
+              ⍝ Syntax: LOG [n] [filter]  — send recent log entries to admin
+              ⍝   n       : number of lines (default 100)
+              ⍝   filter  : case-insensitive substring filter (level, category, or free text)
+              ⍝ Examples: LOG  |  LOG 200  |  LOG ERR  |  LOG 50 SYS
+              n←100 ⋄ filt←''
+              :If 2≤≢t
+                  :If ⊃2⊃⎕VFI 2⊃t                   ⍝ first extra token numeric → line count
+                      n←⌊⊃2⊃⎕VFI 2⊃t
+                      :If 3≤≢t ⋄ filt←⎕C 3⊃t ⋄ :EndIf
+                  :Else
+                      filt←⎕C 2⊃t                   ⍝ non-numeric → filter string
+                  :EndIf
+              :EndIf
+              lines←GetLogs filt
+              :If 0=≢lines
+                  ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)('No log entries',((0<≢filt)/' matching filter "',filt,'"'))''
+                  →endSel
+              :EndIf
+              ⍝ Take last n entries
+              lines←(-n⌊≢lines)↑lines
+              ⍝ HTML-encode & < > in log messages
+              EncL←('[&<>]'⎕R{('&amp;' '&lt;' '&gt;')⊃⍨'&<>'⍳⊃⍵.Match})
+              ⍝ Build HTML table (color-coded by level)
+              html←'<table style="font-family:''Lucida Console'',Monaco,monospace;font-size:0.85em;border-collapse:collapse;width:100%">'
+              html,←'<thead><tr style="background:#1a2a3a;color:#fff">'
+              html,←'<th align="left" style="padding:3px 8px">Timestamp</th>'
+              html,←'<th align="left" style="padding:3px 8px">Lvl</th>'
+              html,←'<th align="left" style="padding:3px 8px">Cat</th>'
+              html,←'<th align="left" style="padding:3px 8px">Message</th>'
+              html,←'</tr></thead><tbody>',LF
+              :For i :In ⍳≢lines
+                  :Trap 0
+                      entry←⎕JSON i⊃lines
+                      bg←('ERR' 'WARN' 'INFO' 'DBG'⍳⊂entry.level)⊃'#ffd6d6' '#fff3cd' '#eaf4ea' '#f5f5f5' '#ffffff'
+                      html,←'<tr style="background:',bg,'">'
+                      html,←'<td style="padding:2px 8px;white-space:nowrap">',entry.ts,'</td>'
+                      html,←'<td style="padding:2px 8px"><b>',entry.level,'</b></td>'
+                      html,←'<td style="padding:2px 8px">',entry.cat,'</td>'
+                      html,←'<td style="padding:2px 8px">',EncL entry.msg,'</td>'
+                      html,←'</tr>',LF
+                  :Else
+                  :EndTrap
+              :EndFor
+              html,←'</tbody></table>'
+              body←(⍕≢lines),' log entries'
+              :If 0<≢filt ⋄ body←body,' (filter: "',filt,'")' ⋄ :EndIf
+              ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)body html
+              →endSel
+          :Case ⎕C ⍙'cmd_setcfg'
+              ⍝ JSON body: {"field": value, ...}
+              ⍝ Editable: log_level log_console ratelimit_window_secs ratelimit_max confirm_window_hours attachments attachments_maxbytes list_name privacy_url
+              log←''
+              txt←E.Text~CR
+              txt←((txt⍳'{')-1)↓((≢txt)+1-(⌽txt)⍳'}')↑txt
+              :Trap 0
+                  new←(⎕JSON⍠'Dialect' 'JSON5')txt
+              :Else
+                  ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setcfg_err_json')
+                  →endSel
+              :EndTrap
+              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'privacy_url'
+                  :If 2=new.⎕NC fld
+                      newval←new⍎fld
+                      :If (2≠cfg.⎕NC fld)∨newval≢cfg⍎fld
+                          log,←CR,fld,': '
+                          log,←(2=cfg.⎕NC fld)/(⎕JSON⍠'Compact' 1)cfg⍎fld
+                          log,←(2=cfg.⎕NC fld)/' → '
+                          log,←(⎕JSON⍠'Compact' 1)newval
+                          fld cfg.{⍎⍺,'←⍵'}newval
+                      :EndIf
+                  :EndIf
+              :EndFor
+              :If 0<≢log
+                  SaveCfg
+                  'INFO' 'ADM'Log'setcfg:',log
+                  ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)((⍙'setcfg_reply'),log)
+              :Else
+                  ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setcfg_no_changes')
+              :EndIf
+              →endSel
+          :Case ⎕C ⍙'cmd_restart'
+              ⎕SIGNAL 801
+          :EndSelect
+     endSel:
+          E SendLog StartOfLog
+      :EndIf
+    ∇
+
+    ∇ DevAction E;t;cmd1;tags;tmp;linked;mid;prefix;replyTo;StartOfLog;digest_body;digest_html
+      :Access public
+      prefix←'[',cfg.list_name,'] '
+      mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
+      replyTo←E.sender
+      t←' '(≠⊆⊢)E.subject
+      :If 0<≢t
+          ⎕←StartOfLog←∊'DevAction: ',E.(subject,' ',sender,' ',⍕ticks)
+          'INFO' 'DEV'Log StartOfLog
+          :Select cmd1←⎕C 1⊃t
+          :Case 'git'
+              :If (⎕C 2 #.Word E.subject)≡'pull'
+                  linked←1  ⍝ determine if we were linked or not (so that we can then Link or Import)
+                  tmp←739⌶0
+          ⍝ link.break
+          ⍝ '(all: 1)'⎕se.Link.Break ''
+            ⍝ no, doesn't work as intended. how could we restart and re-create links
+            ⍝ when the ws is filled already?
+            ⍝ also can't do ⎕CLEAR to truly clear the dws, as (even when executed from ⎕SE)
+            ⍝ any fn would stop after the ⎕CLEAR, so we coulden'*t use it to then launch things again.
+            ⍝ seems we'll have to just overwrite the code!
+          ⍝********************
+          ⍝ or maybe we just do LINK.Import
+          ⍝ and launch a new sessinón with same cmdline
+          ⍝and then end the current one!!!
+          ⍝********************
+          ⍝ github download: check is there is a newer tag!
+                  tags←#.Code.GitHub.ListTags #.Config.repo
+                  tags←1 0↓tags                                             ⍝ remove headers
+                  tags←tags[⍸0<≢¨('^v[0-9]+\.[0-9]+\.[0-9]+$'⎕S 0)¨tags[;1];]  ⍝ standard versions only (e.g. no "v0.9.9test")
+                  tags←tags[⍋↑{⊃,/{2⊃⎕VFI ⍵}¨'.'(≠⊆⊢)⍵~'v'}¨tags[;1];]
+                  :Select ×(≢tags)-tags[;1]⍳⊆#.Config.version
+                  :Case 1    ⍝ update!
+                      'INFO' 'DEV'Log'Updating from ',#.config.version,' to ',tags[≢tags;1]
+                  :Case 0    ⍝ current
+                      'INFO' 'DEV'Log'No updates found - ',#.Config.version,' is still the last tag!'
+                      →endSel
+                  :Case ¯1   ⍝ Config.version not found!
+                      'WARN' 'DEV'Log'Config.Version "',#.Config.version,'" not found in tags!'
+                      'WARN' 'DEV'Log⍕tags
+                      →endSel
+                  :EndSelect
+                  #.jarvis.Stop
+                  tmp←tmp,'/',⊃⌽tags[;1]
+                  tmp←2(⎕MKDIR⍠'Unique' 1)tmp
+                  tmp,←'/'
+                  'DBG' 'DEV'Log'Checking out ',⊃⌽tags[;5]
+                  tmp #.Code.GitHub.CheckOut #.Config.repo,(⊂'sha'),tags[≢tags;5]
+                  #.Home(⎕NCOPY⍠('PreserveAttributes' 1)('IfExists' 'Replace'))tmp
+                  'DBG' 'DEV'Log'version=',⎕SH'grep version /opt/eventler/Config/eventler.json5'
+                  2 ⎕NDELETE tmp
+     
+                  E SendLog StartOfLog   ⍝ send log
+                  a←⎕NEW #.APLProcess''(∊' ',⍨¨1↓2 ⎕NQ'.' 'GetCommandLineArgs')
+                  ⎕OFF
+              :EndIf
+          :Case 'detrap'
+              ⎕SIGNAL 802
+          :Case 'retrap'
+              ⎕SIGNAL 803
+          :EndSelect
+     endSel:
+          E SendLog StartOfLog
+      :EndIf
+    ∇
+
+    ∇ E SendLog StartOfLog;log;i;mid;prefix;replyTo
+      log←⎕SE ⎕WG'Log'
+      i←log⍳⊆StartOfLog
+      :If i<≢log
+          log←(i-1)↓log
+      :EndIf
+      mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
+      prefix←'[',cfg.list_name,'] '
+      replyTo←E.sender   ⍝ in AdminAction E.sender is already set to the redirect address
+      ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)log
+    ∇
+
+
+    ∇ failed←ExtractBounceAddress E;headers;hv;matches
+      ⍝ Extracts the failed recipient address from an NDR/bounce email.
+      ⍝ 1. X-Failed-Recipients Header
+      failed←''
+      headers←↑E.headers
+      hv←⊃(headers⍪⊂'')[(headers[;1]⍳⊂'X-Failed-Recipients');2]
+      :If 0<≢hv~' '
+          failed←⎕C,hv~' '
+          →0
+      :EndIf
+      ⍝ 2. Final-Recipient: rfc822; addr  (RFC 3464 / message/delivery-status)
+      matches←('Final-Recipient:\s*rfc822;\s*([a-zA-Z0-9_.+%-]+@[a-zA-Z0-9.-]+)'⎕S'\1'⍠'IC' 1)E.Text
+      :If 0<≢matches
+          failed←⎕C⊃matches
+      :EndIf
+    ∇
+
+    ∇ RecordBounce E;failed;sub;i;z;file;adm
+      :Access public
+      ⍝ Process NDR: increment bounce counter, disable at threshold (3) + notify admins.
+      failed←ExtractBounceAddress E
+      :If 0=≢failed
+          'WARN' 'BOUNCE'Log'Bounce without recognizable recipient address'
+          →0
+      :EndIf
+      ⍝ Do not count temporary errors (4.x.x) — only permanent failures (5.x.x) are real bounces
+      :If (0<≢('Status:\s*4\.\d'⎕S'\0')E.Text)∧0=≢('Status:\s*5\.\d'⎕S'\0')E.Text
+          'INFO' 'BOUNCE'Log'Temporary error (4.x.x), bounce not counted'(⊆failed)
+          →0
+      :EndIf
+      sub←GetSubscribers 2
+      i←sub.email⍳⍥⎕C⊂failed
+      :If i>≢sub
+          'WARN' 'BOUNCE'Log'Bounce for unknown address'(⊆failed)
+          →0
+      :EndIf
+      z←i⊃sub
+      z.bounces←{2=⍵.⎕NC'bounces':⍵.bounces+1 ⋄ 1}z
+      z.last_bounce←1 ⎕DT⊂⎕TS
+      sub[i]←⊂z
+      file←CFG.config.Folder,'subscribers.json'
+      (⊂(⎕JSON⍠'Compact' 0)sub)⎕NPUT file 1
+      'INFO' 'BOUNCE'Log('bounce #',(⍕z.bounces))(⊆failed)
+      :If z.bounces≥3
+          z.disabled←1
+          sub[i]←⊂z
+          (⊂(⎕JSON⍠'Compact' 0)sub)⎕NPUT file 1
+          'WARN' 'BOUNCE'Log('disabled after ',(⍕z.bounces),' bounces')(⊆z.email)
+          :For adm :In ,⊆cfg.admin_accounts
+              SendMail adm(⍙'bounce_admin_tit'failed)(⍙'bounce_admin_body'failed(⍕z.bounces))
+          :EndFor
+      :EndIf
+    ∇
+
+    ∇ ResetBounce sender;sub;i;s;addr
+      ⍝ Reset a subscriber's bounce counter when they actively communicate with the list.
+      ⍝ Proof of reachability: subscriber sends a mail or a command.
+      ⍝ Only reset if 0 < bounces < threshold (3) — do not touch disabled addresses.
+      addr←#.getMaddr sender
+      sub←GetSubscribers 2
+      i←sub.email⍳⍥⎕C⊂addr
+      :If i>≢sub ⋄ →0 ⋄ :EndIf  ⍝ Subscriber not found
+      s←i⊃sub
+      :If s{6::0 ⋄ (0<⍺⍎⍵)∧3>⍺⍎⍵}'bounces'
+          s.bounces←0
+          sub[i]←⊂s
+          (⊂(⎕JSON⍠'Compact' 0)sub)⎕NPUT(CFG.config.Folder,'subscribers.json')1
+          'INFO' 'BOUNCE'Log'Bounce counter reset (active communication)'(⊆addr)
+      :EndIf
+    ∇
+
+    ∇ ok←CheckRateLimit sender;file;data;now;ts;i;e;window;limit
+      ⍝ Rate-limiting: prevents abuse through too many commands in a short time.
+      ⍝ Configuration per list in triggers.json5 → handler_cfg:
+      ⍝   ratelimit_window_secs  Time window in seconds (default: 300 = 5 min.)
+      ⍝   ratelimit_max          Max. commands per window (default: 10)
+      ⍝ Storage: CFG.config.Folder/ratelimit.json  (array of {email, ts})
+      window←{2=⍵.⎕NC'ratelimit_window_secs':⍵.ratelimit_window_secs ⋄ 300}cfg
+      limit←{2=⍵.⎕NC'ratelimit_max':⍵.ratelimit_max ⋄ 10}cfg
+      file←CFG.config.Folder,'ratelimit.json'
+      data←{⎕NEXISTS ⍵:(⎕JSON⍠'Dialect' 'JSON5')1⊃⎕NGET ⍵ ⋄ ⍬}file
+      now←20 ⎕DT⊂⎕TS  ⍝ Unix timestamp (seconds since 1970-01-01)
+      :If 0=≢data
+          i←1  ⍝ no entry yet → "not found"
+          ts←⍬
+      :Else
+          i←(⎕C¨data.email)⍳⊂⎕C sender
+          ts←{⍵≤≢data:(⍵⊃data).ts ⋄ ⍬}i
+      :EndIf
+      ts←(ts≥now-window)/ts  ⍝ keep only timestamps within the window
+      ok←limit>≢ts            ⍝ 1=OK, 0=limit exceeded
+      ts,←now                 ⍝ add current timestamp
+      ⍝ Update existing entry or create new one
+      :If i≤≢data
+          (i⊃data).ts←ts
+      :Else
+          e←⎕NS''
+          e.email←⎕C sender
+          e.ts←ts
+          data,←⊂e
+      :EndIf
+      data←({0<≢⍵.ts}¨data)/data  ⍝ clean up entries without recent timestamps
+      (⊂(⎕JSON⍠'Compact' 0)data)⎕NPUT file 1
+    ∇
+
+    ∇ res_ns←SendAndAdd2Digest E;t;p;sub;e;c;s;msg;nam;smtp_cfg;Subject;res;hd;headers;file;orig_from;mmsg;email;ht;hb;tt;tb;b;smtp;txt;orig;data_folder;data;rx;part;⎕TRAP;ti;chunk;multipart;i;attachments;iter;multiparts;∆;len;h;y;htmlPart;textPart;inlineImages;inlineImagesNoCid;pt;alternative;cleanText;related;img;keptAttachments;mixed;blacklist;⎕TRAP
+      :Access public
+      blacklist←GetBlacklist
+     
+      res_ns←⎕NC''
+      p←⎕NPARTS E.Filename
+      1 ⎕MKDIR data_folder←(1⊃⎕NPARTS ¯1↓1⊃p),'archive/'
+      t←data_folder,∊1↓p
+      sub←GetSubscribers 3 ⍝ get subscribers
+      ResetBounce E.sender  ⍝ active list participation → reset bounce counter if < threshold
+      :If ⎕NEXISTS file←data_folder,'data.json5'
+          data←(⎕JSON⍠'Dialect' 'JSON5')1⊃(⎕NGET)file
+      :Else
+          data←⎕NS'' ⋄ data.count←0
+      :EndIf
+      c←data.count+1
+      data.count←c
+      (⊂(⎕JSON⍠'Compact' 0)data)⎕NPUT(data_folder,'data.json5')1
+      (p←data_folder,(⍕c),'.eml')⎕NCOPY E.Filename
+      'INFO' 'SYS'Log'msg #',(⍕c),': "',E.subject,'" → ',p
+      e←E.⎕NS'subject' 'date' 'ticks'
+     
+      msg←⎕NS''
+      mmsg←⎕NEW MimeMessage
+      email←mmsg.Load p CancellationToken
+     
+      ti←E.subject   ⍝ from our json file
+      rx←⍙'mailPrefix_tit'(cfg.name_short)'\d*'
+      rx←('['⎕R'\['⍠'Regex' 0)rx
+      :While ∆≢ti←(rx ⎕R''⍠'IC' 1)∆←ti
+      :EndWhile   ⍝ keep removing prefixes until there are no more
+     
+      Subject←(⍙'mailPrefix_tit'(cfg.name_short)(⍕c)),' ',ti
+      E.Subject←Subject
+     
+      ⍝ set From header
+      orig_from←#.getMaddr E.sender
+      orig_from←sub{(⍺.email⍳⍥⎕C ⍵)⊃⍺}⊆#.getMaddr orig_from
+      e.sender←orig_from.(name,' <',email,'>')
+      orig_from←orig_from.name  ⍝ now continue with name of original sender
+     
+      hd←ExtractMimeHeaders email
+      ⍝msg.BodyIsRawMessage←1
+      hd⍪←'Subject'Subject
+      ⍝ RFC 2369 / RFC 2919 List-* Headers
+      hd⍪←'List-Id'(cfg.list_name,' <',⎕C cfg.name_short,'.',(cfg.smtp_from↓⍨cfg.smtp_from⍳'@'),'>')
+      hd⍪←'List-Unsubscribe'('<mailto:',cfg.smtp_from,'?subject=UNSUBSCRIBE>')
+      hd⍪←'List-Help'('<mailto:',cfg.smtp_from,'?subject=HELP>')
+      hd⍪←'List-Post'('<mailto:',cfg.smtp_from,'>')
+      hd⍪←'List-Subscribe'('<mailto:',cfg.smtp_from,'?subject=SUBSCRIBE>')
+      hd⍪←'Precedence' 'list'
+      origDate←⍕email.Date.DateTime  ⍝ capture before Headers.Clear wipes the Date field
+      email.Headers.Clear
+      :For h :In ↓hd
+          :If ⎕NULL≢2⊃h
+              email.Headers.Add h
+          :EndIf
+      :EndFor
+     
+      ⍝ Note on line-endings: msg is read from file, so it only has LF.
+      ⍝ We need to expand this to CRLF before calling SendMai!l
+      ⍝(⊂(LF ⎕R CRLF⍠'Regex' 0)hd,LF,t)⎕NPUT p 1
+      ⍝headers←{(⊃⍸(2⍴LF)⍷⍵)↑⍵}t
+      ⍝mmsg←⎕NEW MimeMessage
+      ⍝email←mmsg.Load p CancellationToken
+      email.From.Clear
+      email.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+      (ht hb tt tb)←MakeHeaderFooter origDate orig_from
+     
+      orig←⍕email.Body
+      ⍝multipart←⎕new Multipart (email)
+      txt←''
+      len←0
+      attachments←multiparts←⍬
+      iter←⎕NEW MimeKit.MimeIterator email
+      :While iter.MoveNext
+          part←iter.Current
+          multipart←iter.Parent
+          :If multipart≢⎕NULL
+          :AndIf part≢⎕NULL
+          :AndIf part.IsAttachment
+              multiparts,←multipart
+              attachments,←part
+              len+←part.Content.Stream.Length
+          :EndIf
+      :EndWhile
+      keptAttachments←attachments
+      :If ~cfg.attachments
+      :OrIf len{6::0 ⋄ ⍺>⍎⍵}'cfg.attachments_maxbytes'
+        ⍝ remove Attachments
+          keptAttachments←⍬
+          :For i :In ⍳≢attachments
+              txt,←⊂attachments[i].FileName
+              multiparts[i].Remove attachments[i]
+          :EndFor
+          :If 0<≢txt
+              :If ~cfg.attachments
+                  msg←' ',⍙'Subj_WarningNoAtt'(¯1↓∊txt,¨'+')
+              :Else
+                  msg←' ',⍙'Subj_WarningAtt'(¯1↓∊txt,¨'+')(⍕len)(⍕cfg.attachments_maxbytes)
+              :EndIf
+              Subject,←msg
+          :EndIf
+      :EndIf
+      textPart←htmlPart←⎕NULL
+      inlineImages←inlineImagesNoCid←⍬
+     
+      :For part :In email.BodyParts
+          :If part.IsAttachment
+              :Continue  ⍝ Attachments already handled
+          :EndIf
+     
+          :If part{6::0 ⋄ ⍺⍎⍵}'IsPlain'
+              textPart←part
+          :ElseIf part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
+              htmlPart←part
+              pt←part.Text
+     
+    ⍝ Fade existing Alisia header/footer.
+              :If (∨/'alisia_header'⍷pt)∨(∨/'linear-gradient'⍷pt)∧∨/'Lucida'⍷pt
+                  'DBG' 'SYS'Log'[fade] alisia_header/Lucida-Gradient gefunden – Styles anpassen'
+                  st←GetStyles
+                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+              :Else
+                  'DBG' 'SYS'Log'[fade] no alisia_header/Lucida-Gradient in HTML'
+              :EndIf
+     
+    ⍝ Check if <body> tag exists
+              :If ∨/'<body'⍷⎕C pt
+        ⍝ Insert header after <body>
+                  pt←('<body([^>]*)>'⎕R('<body\1>',CRLF,ht,CRLF)⍠('IC' 1)('Mode' 'D'))pt
+        ⍝ Insert footer before </body>
+                  pt←('</body>'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
+              :Else
+        ⍝ No body tag → wrap everything
+                  pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
+              :EndIf
+     
+              htmlPart.Text←pt
+          :ElseIf part.ContentId≢⎕NULL
+              inlineImages,←part  ⍝ inline images (cid:...)
+          :Else
+              :If 'image'≡part.ContentType.MediaType
+                  inlineImagesNoCid,←part  ⍝ inline images without CID (e.g. iPhone images)
+              :Else
+                  keptAttachments,←part  ⍝ other unknown inline parts
+              :EndIf
+          :EndIf
+      :EndFor
+     
+      :If 0<≢inlineImagesNoCid
+          :If htmlPart≢⎕NULL
+              keptAttachments←keptAttachments,inlineImagesNoCid  ⍝ HTML present → treat as attachments
+          :Else
+              i←0  ⍝ No HTML → generate CIDs and use as inline images
+              :For img :In inlineImagesNoCid
+                  i+←1
+                  img.ContentId←(⍕i),'@noreply'
+                  inlineImages,←img
+              :EndFor
+          :EndIf
+      :EndIf
+     
+            ⍝ Build new MIME structure with MimeKit
+      alternative←⎕NEW MimeKit.Multipart(⊂'alternative')
+     
+      cleanText←''
+      :If textPart≢⎕NULL
+    ⍝ Remove [image: ...] placeholders
+          cleanText←textPart.Text
+          cleanText←'\[image:[^\]]+\]'⎕R''⍠'Mode' 'D'⊢cleanText
+          textPart.Text←tt,CRLF,cleanText,CRLF,tb
+          alternative.Add textPart
+      :EndIf
+     
+      :If htmlPart≢⎕NULL
+          :If 0<≢inlineImages
+                    ⍝ HTML has inline images → multipart/related
+              related←⎕NEW MimeKit.Multipart(⊂'related')
+              related.Add htmlPart
+              :For img :In inlineImages
+                  related.Add img
+              :EndFor
+              alternative.Add related
+          :Else
+                    ⍝ HTML without images → add directly
+              alternative.Add htmlPart
+          :EndIf
+      :ElseIf 0<≢inlineImages
+          ⍝ No HTML but inline images → build HTML from text with images
+          htmlPart←⎕NEW MimeKit.TextPart(⊂'html')
+          :If 0<≢cleanText
+              pt←'<body>',CRLF,ht,CRLF,'<pre>',cleanText,'</pre>',CRLF
+          :Else
+              pt←'<body>',CRLF,ht,CRLF
+          :EndIf
+          :For img :In inlineImages
+              pt,←'<br><img src="cid:',img.ContentId,'">'
+          :EndFor
+          pt,←CRLF,hb,CRLF,'</body>'
+          htmlPart.Text←pt
+          related←⎕NEW MimeKit.Multipart(⊂'related')
+          related.Add htmlPart
+          :For img :In inlineImages
+              related.Add img
+          :EndFor
+          alternative.Add related
+      :EndIf
+     
+      :If 0<≢keptAttachments
+          mixed←⎕NEW MimeKit.Multipart(⊂'mixed')
+          mixed.Add alternative
+          :For ∆ :In keptAttachments
+              mixed.Add ∆
+          :EndFor
+          email.Body←mixed
+      :Else
+          email.Body←alternative
+      :EndIf
+      email.Subject←Subject
+      email.WriteTo p CancellationToken
+      E.Text←email.TextBody
+      E.type←3
+      e.count←c
+      (⊂(⎕JSON⍠'Compact' 0)e)⎕NPUT(data_folder,(⍕c),'.json5')
+     
+      smtp_cfg←cfg.(smtp_server smtp_port smtp_from smtp_pswd smtp_user smtp_secure)
+      smtp←⎕NEW SmtpClient
+      smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
+      smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
+      ⍝ Clear addresses...
+      email.To.Clear
+      email.To.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+      sub←GetSubscribers 0
+      :For chunk :In 100{⍵⊂[1]⍨(≢⍵)⍴⍺↑1}sub  ⍝ do we need configuarable chunk size?
+          email.Bcc.Clear
+          :For nam :In chunk
+              email.Bcc.Add(⎕NEW MailboxAddress nam.(name email))
+      ⍝ TODO: don't save every mail once beta is over...
+              file←∊(2↑⎕NPARTS p),'.',nam.email,3⊃⎕NPARTS p
+              email.WriteTo file CancellationToken
+          :EndFor
+          email.Date←DateTimeOffset.Now
+          smtp.Send(email CancellationToken ⎕NULL)
+      :EndFor
+      smtp.Disconnect 1 CancellationToken
+    ∇
+
+
+    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;msg;mmsg;smtp_cfg;smtp
+      :Access public
+      msg←⎕NEW BodyBuilder
+      ⍝ ⍵=To Title Body [Html[bcc]]
+      :If 3<≢ToTitBody_Html_bcc
+          msg.HtmlBody←4⊃ToTitBody_Html_bcc
+      :EndIf
+      :If 0=⎕NC'AddHeaders'
+          AddHeaders←⍬
+      :EndIf
+      AddHeaders←,AddHeaders
+      msg.TextBody←{2=≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}3⊃ToTitBody_Html_bcc
+     
+      mmsg←⎕NEW MimeMessage
+      mmsg.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+      mmsg.Body←msg.ToMessageBody
+      mmsg.Subject←2⊃ToTitBody_Html_bcc
+      mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
+      :If 4<≢ToTitBody_Html_bcc
+      :AndIf 0<≢ToTitBody_Html_bcc
+          mmsg{⍺.Bcc.Add(⎕NEW MailboxAddress ⍵)}¨5⊃ToTitBody_Html_bcc
+      :EndIf
+      :While 1<≢AddHeaders
+          :If ⎕NULL≢2⊃AddHeaders
+              mmsg.Headers.Add 2↑AddHeaders
+          :EndIf
+          AddHeaders←2↓AddHeaders
+      :EndWhile
+     
+      smtp_cfg←cfg.(smtp_server smtp_port smtp_from smtp_pswd smtp_user smtp_secure)
+      smtp←⎕NEW SmtpClient
+      smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
+      smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
+      mmsg.Date←DateTimeOffset.Now
+     
+     
+      r←smtp.Send(mmsg CancellationToken ⎕NULL)
+      'DBG' 'SMTP'Log'smtp.Send "',(2⊃ToTitBody_Html_bcc),'" → ',(⍕1⊃ToTitBody_Html_bcc),': ',r
+      r←200≠⊃2⊃⎕VFI r~'.'
+      smtp.Disconnect 1 CancellationToken
+    ∇
+
+    ∇ r←E ReplyMail ToTitBody_Html_bcc;h;mid;hdr
+      ⍝ Like SendMail but automatically sets In-Reply-To from the event's Message-ID header
+      :Access public
+      h←↑E.headers
+      mid←⊃(h⍪⊂'')[(h[;1]⍳⊂'Message-ID');2]
+      hdr←(0<≢mid)/'In-Reply-To'mid   ⍝ empty if no Message-ID found
+      r←hdr SendMail ToTitBody_Html_bcc
+    ∇
+
+    ∇ r←{AddHeaders}SendMimeMsg mmsg;smtp_cfg;smtp
+      ⍝ Send a ready-built MimeMessage via SMTP (for GETMSGS single-email)
+      :If 0=⎕NC'AddHeaders' ⋄ AddHeaders←⍬ ⋄ :EndIf
+      AddHeaders←,AddHeaders
+      :While 0<≢AddHeaders
+          :If ⎕NULL≢2⊃AddHeaders
+              mmsg.Headers.Add 2↑AddHeaders
+          :EndIf
+          AddHeaders←2↓AddHeaders
+      :EndWhile
+      smtp_cfg←cfg.(smtp_server smtp_port smtp_from smtp_pswd smtp_user smtp_secure)
+      smtp←⎕NEW SmtpClient
+      smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
+      smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
+      mmsg.Date←DateTimeOffset.Now
+      r←smtp.Send(mmsg CancellationToken ⎕NULL)
+      'DBG' 'SMTP'Log'smtp.Send (SendMimeMsg) → ',(⍕mmsg.To),': ',r
+      r←200≠⊃2⊃⎕VFI r~'.'
+      smtp.Disconnect 1 CancellationToken
+    ∇
+
+
+    ∇ lines←GetAuditTrail emails;f;raw;O;e
+      ⍝ Read audit.jsonl and return text lines matching any of the given email addresses
+      lines←⍬
+      f←CFG.config.Folder,'audit.jsonl'
+      :If ~⎕NEXISTS f ⋄ →0 ⋄ :EndIf
+      raw←(⎕UCS 10)#.split(1⊃⎕NGET f)~⎕UCS 13
+      raw←(0<≢¨raw)/raw
+      :For e :In raw
+          :Trap 0
+              O←⎕JSON e
+              :If 2=O.⎕NC'email'
+              :AndIf (⊂⎕C O.email)∊⎕C¨emails
+                  lines,←⊂O.ts,' ',O.msg
+              :EndIf
+          :Else
+          :EndTrap
+      :EndFor
+    ∇
+
+    ∇ bl←GetBlacklist;f
+      ⍝ Load blacklist from file; return ⍬ if file doesn't exist
+      bl←⍬
+      :If ⎕NEXISTS f←CFG.config.Folder,'blacklist.json'
+          bl←(⎕JSON⍠'Dialect' 'JSON5')1⊃⎕NGET f
+      :EndIf
+    ∇
+
+    ∇ hd←ExtractMimeHeaders email;hv;h
+      ⍝ Extract MIME-Version/Content-Type/Content-Transfer-Encoding from original email.
+      ⍝ Date is intentionally NOT copied: SendMail sets mmsg.Date←DateTimeOffset.Now,
+      ⍝ so copying it would produce a duplicate Date header (RFC 5322 violation).
+      hd←0 2⍴0
+      :Trap 90 ⍝ catch ArgumentNullException if no MIME-Version
+          :If 0<≢hv←email.Headers[⊂h←'MIME-Version']
+              hd⍪←h(⊃hv)
+          :EndIf
+      :Else
+          :If 0<≢hv←email.Headers[⊂h←'Content-Type']
+              hd⍪←h(⊃hv)
+          :EndIf
+          :If 0<≢hv←email.Headers[⊂h←'Content-Transfer-Encoding']
+              hd⍪←h(⊃hv)
+          :EndIf
+      :EndTrap
+    ∇
+
+    ∇ r←MakeHeaderFooter(dateStr orig_from);d;h;m;s;ht;hb;purl;bi;bt
+      ⍝ Return (ht hb tt tb) — top/bottom HTML and plain-text strings
+      ⍝ dateStr: pre-captured date string (email.Date.DateTime must be read before Headers.Clear)
+      (d h m)←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
+      s←⊃GetStyles  ⍝ Level-0 style (fresh/outermost)
+      ht←'<!--alisia_header--><div class="alisia_header" style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}⍙'add_top_html'dateStr orig_from),'</div>'
+      bi←{1<≡⍵:∊⍵ ⋄ ⍵}⍙'add_bot_html'd h m #.Config.version  ⍝ HTML footer content before wrapping
+      bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}⍙'add_bot_text'd h m #.Config.version  ⍝ plain text footer
+      :If 0<≢purl←{6::'' ⋄ cfg.##.handler_cfg.privacy_url}⍬
+          bi,←⍙'privacy_link_html'purl  ⍝ append inside footer div
+          bt,←CRLF,⍙'privacy_link_text'purl
+      :EndIf
+      hb←'<!--alisia_footer--><div class="alisia_footer" style="',s.footer,'">',bi,'</div>'
+      r←ht hb({1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}⍙'add_top_text'dateStr orig_from)bt
+    ∇
+
+    ∇ SaveCfg;flds;fld;ovrd
+      ⍝ Persist editable cfg fields to cfg_overrides.json for reload after restart
+      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'privacy_url'
+      flds←flds/⍨2=cfg.⎕NC¨flds
+      ovrd←⎕NS''
+      :For fld :In flds
+          fld ovrd.{⍎⍺,'←⍵'}cfg⍎fld
+      :EndFor
+      (⊂(⎕JSON⍠'Compact' 0)ovrd)⎕NPUT(CFG.config.Folder,'cfg_overrides.json')1
+    ∇
+
+    ∇ d SaveSubscriber;z;i;file
+      ⍝ Update the subscriber record matching d.email, saving to subscribers.json
+      ⍝ Reads the file directly (no mode filtering) to avoid corrupting the dataset
+      file←CFG.config.Folder,'subscribers.json'
+      :If ⎕NEXISTS file
+          z←(⎕JSON⍠'Dialect' 'JSON5')1⊃⎕NGET file
+      :Else
+          z←⍬
+      :EndIf
+      i←z.email⍳⍥⎕C⊂d.email
+      :If i≤≢z
+          z[i]←⊂d
+          (⊂(⎕JSON⍠'Compact' 0)z)⎕NPUT file 1
+      :EndIf
+    ∇
+
+:endclass

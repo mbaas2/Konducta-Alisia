@@ -1,0 +1,9 @@
+(
+'⍙cmd_subscribe⍙'
+'⍙cmd_unsubscribe⍙'
+'⍙cmd_enable⍙'
+'⍙cmd_listmembers⍙'
+'⍙cmd_log⍙'
+'⍙cmd_setcfg⍙'
+'⍙cmd_restart⍙'
+)

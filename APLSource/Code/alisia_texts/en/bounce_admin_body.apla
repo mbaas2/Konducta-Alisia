@@ -1,0 +1,6 @@
+(
+ 'The address "%1" has been automatically deactivated after %2 undelivered messages (bounces).'
+ ''
+ 'It can be re-enabled manually in the subscriber data (disabled: false).'
+ 'Further bounces for this address will continue to be logged.'
+)

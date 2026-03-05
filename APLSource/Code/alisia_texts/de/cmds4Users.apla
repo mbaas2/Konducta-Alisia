@@ -1,0 +1,12 @@
+(
+'⍙cmd_unsubscribe⍙'
+'⍙cmd_nomail⍙'
+'⍙cmd_mail⍙'
+'⍙cmd_help⍙'
+'⍙cmd_getmsgs⍙'
+'⍙cmd_listmsgs⍙'
+'⍙cmd_getmydata⍙'
+'⍙cmd_setmydata⍙'
+'⍙cmd_stats⍙'
+'⍙cmd_deleteme⍙'
+)

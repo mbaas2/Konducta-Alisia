@@ -1,0 +1,2 @@
+'^Subject\s?:\s*((Re|Fwd|AW|WG):)*([^\r\n]*)$'
+⍝ NB: we also need to remove [LIST 000] from the subject!

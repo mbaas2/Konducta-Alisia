@@ -1,0 +1,14 @@
+html←cols AddRowSpan html
+→0
+⍝todo: demnächst implementieren!
+:for t :in ⌽⍸'<table'⍷html  ⍝ process tables from end to start
+t_end←⊃⍸('</table>'⍷html)∧t<⍳≢html
+table←(t-1)↓(t_end+7)↑html
+:for c :in cols
+rows←⍳+/'<tr'⍷table
+row←
+
+:endfor
+
+html←((t-1)↑html),table,(t_end+7)↓html
+:endfor

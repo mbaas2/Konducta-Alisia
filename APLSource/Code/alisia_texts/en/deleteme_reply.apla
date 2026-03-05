@@ -1,0 +1,9 @@
+(
+'Your personal data has been deleted from this mailing list:'
+''
+'- Your subscriber record (name, email address, timestamps) has been removed.'
+'- Your sender information has been anonymised in the message archive'
+'  (message contents are preserved as they were sent to a public list).'
+''
+'This action cannot be undone. You may re-subscribe at any time.'
+)

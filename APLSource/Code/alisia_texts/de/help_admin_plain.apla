@@ -1,0 +1,7 @@
+(
+ ''
+ '*** Für Administratoren: ***'
+ '- Senden Sie eine Nachricht mit "⍙cmd_subscribe⍙ {email}" an die Liste, um einen Benutzer mit der angegebenen E-Mail-Adresse zu abonnieren. Dieser wird um Bestätigung gebeten.'
+ '- Senden Sie eine Nachricht mit "⍙cmd_unsubscribe⍙ {email}" an die Liste, um das Abonnement eines Benutzers mit der angegebenen E-Mail-Adresse sofort zu beenden.'
+ '- Senden Sie eine Nachricht mit "⍙cmd_listmembers⍙" an die Liste, um eine Mitgliederliste mit E-Mail-Adresse, Status und Beitrittsdatum zu erhalten.'
+)

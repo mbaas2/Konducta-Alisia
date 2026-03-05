@@ -1,0 +1,13 @@
+(
+ 'Sie oder jemand, der Ihre E-Mail-Adresse verwendet hat (oder ein Administrator der Liste), hat Sie für die im Betreff angegebene Mailingliste angemeldet.'
+ 'Um Sie vor unerwünschtem Spam zu schützen, benötigen wir eine ausdrückliche Zustimmung - daher ist eine Bestätigung erforderlich, bevor das Abonnement wirksam wird.'
+ ''
+ 'Wenn Sie an dieser Mailingliste interessiert sind, bestätigen Sie bitte Ihr Abonnement, indem Sie auf diese Nachricht antworten (oder eine neue Nachricht senden) '
+ 'mit dem Betreff "⍙cmd_confirm⍙ %1" innerhalb der nächsten 24 Stunden! Alternativ klicken Sie auf diesen Link: %2'
+ 'Bitte beachten Sie: Die Bestätigung muss von der E-Mail-Adresse gesendet werden, an die diese Bestätigung gesendet wurde!'
+ ''
+ 'Wenn Sie nicht interessiert sind (oder dies für einen Fehler halten), ignorieren Sie diese Nachricht einfach - es wird keine weitere Kontaktaufnahme erfolgen.'
+ 'Hinweis: Dies ist eine wiederholte Einladung, da das ursprüngliche Abonnement nicht bestätigt wurde.'
+ '         Bitte beachten Sie, dass das Token aktualisiert wurde. Bitte antworten Sie auf diese Nachricht (oder klicken Sie auf den Link), um Ihr Abonnement zu bestätigen.'
+ 'Alternativ können Sie mit "⍙cmd_ignoreme⍙" im Betreff antworten (oder auf diesen Link klicken: %3), um weitere E-Mails zu stoppen.'
+)

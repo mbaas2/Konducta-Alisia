@@ -1,0 +1,10 @@
+(
+ 'You or someone that used your email address (or an administrator of the list) has subscribed you to the mailinglist indicated in the subject.'
+ 'To protect you from unwanted spam, we require an explicit opt-in - so a confirmation is required before the subscriptions becomes effective.<br />'
+ '<br />'
+ '<b>If you are interested in joining this mailing list, please confirm your subscription by replying to this message (or sending a new message) '
+ 'with the subject "⍙cmd_confirm⍙ %1" within the next 24 hours! Alternatively, click <a href=''%2''>this link</a>.</b><br />'
+ 'Please notice: the confirmation must be sent from email address this confirmation was sent to.<br />'
+ '<br />'
+ 'If you are not interested (or believe this is a mistake), please simply ignore this message - there will be no further contact.'
+)

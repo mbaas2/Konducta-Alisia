@@ -1,0 +1,12 @@
+(
+'You have been unsubscribed from the mailing list "%1".'
+''
+'Your subscriber record has been deleted.'
+'Messages you sent to the list remain in the archive'
+'(your sender information is preserved).'
+''
+'To also remove your sender information from the archive'
+'(right to erasure, GDPR Art. 17), send the command ⍙cmd_deleteme⍙.'
+''
+'You may re-subscribe at any time.'
+)

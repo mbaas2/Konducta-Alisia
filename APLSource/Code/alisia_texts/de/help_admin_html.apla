@@ -1,0 +1,9 @@
+(
+ '<h3>F&uuml;r Administratoren</h3>'
+ '<ul><li>Senden Sie eine Nachricht mit "⍙cmd_subscribe⍙ {email}" an die Liste, um einen Benutzer mit der angegebenen E-Mail-Adresse zu abonnieren. Dieser wird um Best&auml;tigung gebeten.</li>'
+ '<li>Senden Sie eine Nachricht mit "⍙cmd_unsubscribe⍙ {email}" an die Liste, um das Abonnement eines Benutzers mit der angegebenen E-Mail-Adresse sofort zu beenden.</li>'
+ '<li>Senden Sie eine Nachricht mit "⍙cmd_listmembers⍙" an die Liste, um eine Mitgliederliste mit E-Mail-Adresse, Status und Beitrittsdatum zu erhalten.</li>'
+ '<li>Senden Sie eine Nachricht mit "⍙cmd_log⍙ [n] [filter]" an die Liste, um die letzten Logeintr&auml;ge zu erhalten. Der optionale Filter trifft exakt auf Log-Level (ERR, WARN, INFO, DBG), Kategorie (SYS, SUB, ADM, SMTP, BOUNCE, SEC) oder als Freitext-Suche. Beispiele: "⍙cmd_log⍙" (letzte 100 Zeilen), "⍙cmd_log⍙ 200" (letzte 200 Zeilen), "⍙cmd_log⍙ ERR" (nur Fehler), "⍙cmd_log⍙ 50 SYS" (letzte 50 Zeilen gefiltert auf SYS), "⍙cmd_log⍙ BOUNCE" (nur Bounce-Ereignisse).</li>'
+ '<li>Senden Sie eine Nachricht mit "⍙cmd_setcfg⍙" und einem JSON-Objekt im Text, um Konfigurationseinstellungen zu &auml;ndern. &Auml;nderbare Felder: log_level (0=ERR 1=WARN 2=INFO 3=DBG), log_console (0/1), ratelimit_window_secs, ratelimit_max, confirm_window_hours, attachments (0/1), attachments_maxbytes, list_name, privacy_url. Beispiel-Body: {"log_level": 2, "ratelimit_max": 5}. &Auml;nderungen wirken sofort und bleiben nach Neustart erhalten.</li>'
+ '<li>Senden Sie eine Nachricht mit "⍙cmd_restart⍙", um den Alisia-Prozess neu zu starten.</li></ul>'
+)

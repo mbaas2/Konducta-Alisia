@@ -1,0 +1,2 @@
+'[%1 #%2]'
+⍝ %1 is the # of the msg, \2 refers to the regex with the "purified" subject

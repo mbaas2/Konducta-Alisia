@@ -1,0 +1,12 @@
+(
+'Sie wurden von der Mailingliste "%1" abgemeldet.'
+''
+'Ihr Abonnentendatensatz wurde gelöscht.'
+'Nachrichten, die Sie an die Liste gesendet haben, verbleiben im Archiv'
+'(Ihre Absenderangaben bleiben erhalten).'
+''
+'Möchten Sie auch Ihre Absenderinformationen aus dem Archiv entfernen lassen'
+'(Recht auf Löschung gemäß DSGVO Art. 17), senden Sie zusätzlich den Befehl ⍙cmd_deleteme⍙.'
+''
+'Sie können sich jederzeit erneut anmelden.'
+)
