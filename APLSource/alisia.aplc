@@ -1,4 +1,4 @@
-:class Alisia : eventler_Handler
+:class alisia : eventler_Handler
     :field private  shared    CR←⎕UCS 13
     :field private  shared    LF←⎕UCS 10
     :field private shared      CRLF←⎕UCS 13 10
