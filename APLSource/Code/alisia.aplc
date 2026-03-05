@@ -1016,7 +1016,7 @@
                   'DBG' 'DEV'Log'Checking out ',⊃⌽tags[;5]
                   tmp #.Code.GitHub.CheckOut #.Config.repo,(⊂'sha'),tags[≢tags;5]
                   #.Home(⎕NCOPY⍠('PreserveAttributes' 1)('IfExists' 'Replace'))tmp
-                  'DBG' 'DEV'Log'version=',⎕SH'grep version /opt/eventler/Config/eventler.json5'
+                  'DBG' 'DEV'Log'version=',⎕SH'grep version ',#.Home,'Config/konducata.json5'
                   2 ⎕NDELETE tmp
      
                   E SendLog StartOfLog   ⍝ send log
