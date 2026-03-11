@@ -9,7 +9,7 @@
             :Access public
       ⍝ Lazy-load level styles from Config/alisia_styles.json5 (cached in shared field)
       :If 0=≢styles
-                    styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(#.Handlers.Alisia.Home,'Config/alisia_styles.json5')
+            styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(#.Home,'alisia_styles.json5')
       :EndIf
       r←styles
     ∇
