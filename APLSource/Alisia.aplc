@@ -709,8 +709,8 @@
                                       :EndIf
                                           ⍝ Insert ht/hb into HTML
                                       :If ∨/'<body'⍷⎕C pt
-                                          pt←('<body([^>]*)>'⎕R{(⊃⍵.Match),CRLF,ht,CRLF}⍠('IC' 1)('Mode' 'D'))pt
-                                          pt←('</body\s*>(?!.*</body\s*>)'⎕R{CRLF,hb,CRLF,⊃⍵.Match}⍠'IC' 1⍠'Mode' 'D')pt
+                                          pt←('<body([^>]*)>'⎕R{⍵.Match,CRLF,ht,CRLF}⍠('IC' 1)('Mode' 'D'))pt
+                                          pt←('</body\s*>(?!.*</body\s*>)'⎕R{CRLF,hb,CRLF,⍵.Match}⍠'IC' 1⍠'Mode' 'D')pt
                                       :Else
                                           pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
                                       :EndIf
@@ -1245,9 +1245,9 @@
     ⍝ Check if <body> tag exists
               :If ∨/'<body'⍷⎕C pt
         ⍝ Insert header after <body>
-                  pt←('<body([^>]*)>'⎕R{(⊃⍵.Match),CRLF,ht,CRLF}⍠('IC' 1)('Mode' 'D'))pt
+                  pt←('<body([^>]*)>'⎕R{⍵.Match,CRLF,ht,CRLF}⍠('IC' 1)('Mode' 'D'))pt
         ⍝ Insert footer before </body>
-                  pt←('</body\s*>(?!.*</body\s*>)'⎕R{CRLF,hb,CRLF,⊃⍵.Match}⍠'IC' 1⍠'Mode' 'D')pt
+                  pt←('</body\s*>(?!.*</body\s*>)'⎕R{CRLF,hb,CRLF,⍵.Match}⍠'IC' 1⍠'Mode' 'D')pt
               :Else
         ⍝ No body tag → wrap everything
                   pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
