@@ -323,8 +323,8 @@
           blacklist←GetBlacklist
           cv,←⊆⍙'stats_labels_admin'               ⍝ Append admin-only rows
           n,←≢blacklist
-          n,←⊂¯3↓RMB∊(⍕¨⌊0.5+((2000⌶)1 14 0)÷2*20),¨⊂' / '
-          n,←⊂#.Home
+          n,←⊂¯3↓RMB∊(⍕¨⌊0.5+((2000⌶)1 14 0 16)÷2*20),¨⊂' / '
+          n,←⊂1⊃⎕nparts #.Home
           n,←⊂di.Name
           n,←⊂' '~⍨,'S<,.>CI15'⎕FMT(di.TotalSize÷2*30)
           n,←⊂' '~⍨' '~⍨,'S<,.>CI15'⎕FMT di.AvailableFreeSpace÷2*30
