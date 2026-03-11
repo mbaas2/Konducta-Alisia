@@ -430,12 +430,12 @@
       prefix←'[',cfg.list_name,'] '
       ⍝ undocumented: admin can append >other@example.com to subject to redirect reply
       replyTo←E.sender
-      :If IsAdmin E.sender
-          :If (1<≢t)∧'>'=⊃⊃⌽t←' '(≠⊆⊢)E.subject
-              replyTo←1↓⊃⌽t
-              E.subject←('\s*>[^\s]+$'⎕R'')E.subject
-          :EndIf
-      :EndIf
+        :If IsAdmin E.sender
+            :If (1<≢t)∧'>'=⊃⊃⌽t←' '(≠⊆⊢)E.subject
+                replyTo←1↓⊃⌽t
+                E.subject←('\s*>[^\s]+$'⎕R'')E.subject
+            :EndIf
+        :EndIf
       ⍝ Rate-limiting: reject request if sender sends too many commands in a short time
       :If ~CheckRateLimit E.sender
           'WARN' 'SEC'Log'Rate limit exceeded'(⊆E.sender)
@@ -709,8 +709,8 @@
                                       :EndIf
                                           ⍝ Insert ht/hb into HTML
                                       :If ∨/'<body'⍷⎕C pt
-                                          pt←('<body([^>]*)>'⎕R('<body\1>',CRLF,ht,CRLF)⍠('IC' 1)('Mode' 'D'))pt
-                                          pt←('</body\s*>(?!.*</body\s*>)'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
+                                          pt←('<body([^>]*)>'⎕R{(⊃⍵.Match),CRLF,ht,CRLF}⍠('IC' 1)('Mode' 'D'))pt
+                                          pt←('</body\s*>(?!.*</body\s*>)'⎕R{CRLF,hb,CRLF,⊃⍵.Match}⍠'IC' 1⍠'Mode' 'D')pt
                                       :Else
                                           pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
                                       :EndIf
@@ -1245,9 +1245,9 @@
     ⍝ Check if <body> tag exists
               :If ∨/'<body'⍷⎕C pt
         ⍝ Insert header after <body>
-                  pt←('<body([^>]*)>'⎕R('<body\1>',CRLF,ht,CRLF)⍠('IC' 1)('Mode' 'D'))pt
+                  pt←('<body([^>]*)>'⎕R{(⊃⍵.Match),CRLF,ht,CRLF}⍠('IC' 1)('Mode' 'D'))pt
         ⍝ Insert footer before </body>
-                  pt←('</body\s*>(?!.*</body\s*>)'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
+                  pt←('</body\s*>(?!.*</body\s*>)'⎕R{CRLF,hb,CRLF,⊃⍵.Match}⍠'IC' 1⍠'Mode' 'D')pt
               :Else
         ⍝ No body tag → wrap everything
                   pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
