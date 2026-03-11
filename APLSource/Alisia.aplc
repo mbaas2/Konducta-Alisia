@@ -1,25 +1,21 @@
-:class alisia : eventler_Handler
+:class Alisia : #.KonductaHandler
     :field private  shared    CR←⎕UCS 13
     :field private  shared    LF←⎕UCS 10
     :field private shared      CRLF←⎕UCS 13 10
     :field private shared      styles←⍬
     :field public shared devCmds←'DETRAP' 'RETRAP'
 
-    ∇ h←home
-      h←1⊃⎕NPARTS 50 ⎕ATX 1⊃⎕SI
-    ∇
-
     ∇ r←GetStyles
       ⍝ Lazy-load level styles from Config/alisia_styles.json5 (cached in shared field)
       :If 0=≢styles
-          styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(home,'../../Config/alisia_styles.json5')
+          styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(#.Home,'Config/alisia_styles.json5')
       :EndIf
       r←styles
     ∇
 
     ∇ r←GetCommand subj        ⍝ remove possible redirection from subject line
       :Access public
-      r←RMB(¯1+subj⍳'>')↑subj
+      r←RMB(¯1+(subj∊'> ')⍳1)↑subj
       'DBG' 'SYS'(⊃#.Triggers.handlers).Log'GetCommand extracted "',r,'" from subject ',subj
     ∇
 
@@ -29,7 +25,7 @@
       cfg←config
       cfg.id←id
       CFG←parent_config
-      txt_ns←'alisia_texts'
+      txt_ns←#.Handlers.Alisia.alisia_texts
       mkv←'4.14.0'   ⍝ Mailkit Version
       project_dir←(739⌶0),'/Eventler_email_smtp_',mkv
       :If ~⎕NEXISTS project_dir
@@ -145,7 +141,7 @@
                   ju←#.JARVIS_URL,'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
                   body←body,⍙'subscribe1_body'token ju
                   html←html,⍙'subscribe1_body_html'token ju
-                  :If 0<≢purl←{6::'' ⋄ cfg.##.handler_cfg.privacy_url}⍬
+                  :If 0<≢purl←PrivacyURL
                       html,←⊂⍙'privacy_link_html'purl
                       body,←⊂⍙'privacy_link_text'purl
                   :EndIf
@@ -590,15 +586,7 @@
               ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)digest_body digest_html
      
           :Case ⍙'cmd_help'
-              plain←⍙'help_plain'
-              html←⍙'help_html'
-              :If IsAdmin E.sender
-                  plain,←⍙'help_admin_plain'
-                  html,←⍙'help_admin_html'
-              :EndIf
-              plain←∊plain,⊂⎕UCS 10
-              html←∊html,⊂⎕UCS 10
-              ('In-Reply-To'Mid)SendMail replyTo('[',CFG.handler_cfg.list_name,']',⍙'helptit')plain html
+              Mid SendHelp replyTo
      
           :CaseList ⍙¨(⊂'cmd_'),¨('list' 'get'),¨⊂'msgs'  ⍝ GETMSGS | LISTMSGS
               expr←(cmd⍳' ')↓cmd  ⍝ selection of relevant msgs
@@ -644,7 +632,7 @@
                       d h m←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
                       hb←⍙'add_bot_html'd h m #.Config.version
                       tb←⍙'add_bot_text'd h m #.Config.version
-                      :If 0<≢purl←{6::'' ⋄ cfg.##.handler_cfg.privacy_url}⍬
+                      :If 0<≢purl←PrivacyURL
                           hb,←⊂⍙'privacy_link_html'purl
                           tb,←⊂⍙'privacy_link_text'purl
                       :EndIf
@@ -710,17 +698,18 @@
                                   :If part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
                                   :AndIf ~part.IsAttachment
                                       pt←part.Text
+                                      pt←FixBrokenEntities pt
                                           ⍝ Existing Alisia header/footer: apply depth-dependent style
-                                      :If (∨/'alisia_header'⍷pt)∨(∨/'linear-gradient'⍷pt)∧∨/'Lucida'⍷pt
-                                          'DBG' 'SYS'Log'[GETMSGS fade] alisia_header/Lucida-Gradient found – adjusting styles'
+                                      :If (∨/'alisia_header'⍷pt)∨((∨/'lucida'⍷⎕C pt)∧((∨/'linear-gradient'⍷⎕C pt)∨(∨/'background'⍷⎕C pt)))
+                                          'DBG' 'SYS'Log'[GETMSGS fade] alisia_header/legacy Lucida styles found - adjusting styles'
                                           st←GetStyles
-                                          pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
-                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top[^>]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
                                       :EndIf
                                           ⍝ Insert ht/hb into HTML
                                       :If ∨/'<body'⍷⎕C pt
                                           pt←('<body([^>]*)>'⎕R('<body\1>',CRLF,ht,CRLF)⍠('IC' 1)('Mode' 'D'))pt
-                                          pt←('</body>'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
+                                          pt←('</body\s*>(?!.*</body\s*>)'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
                                       :Else
                                           pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
                                       :EndIf
@@ -762,7 +751,7 @@
                           'INFO' 'SYS'Log'GETMSGS-Mail gesendet: ',(⍕getmsgs_count),' Nachrichten'
                       :EndIf
                   :ElseIf 0<≢digest_body
-                      digest_html←2 3 #.Code.AddRowSpan digest_html
+                      digest_html←2 3 myBase.AddRowSpan digest_html
                       ('In-Reply-To'Mid)SendMail replyTo digest_tit digest_body digest_html
                   :EndIf
               :EndIf
@@ -929,7 +918,7 @@
               →endSel
           :Case ⎕C ⍙'cmd_setcfg'
               ⍝ JSON body: {"field": value, ...}
-              ⍝ Editable: log_level log_console ratelimit_window_secs ratelimit_max confirm_window_hours attachments attachments_maxbytes list_name privacy_url
+              ⍝ Editable: log_level log_console ratelimit_window_secs ratelimit_max confirm_window_hours attachments attachments_maxbytes list_name
               log←''
               txt←E.Text~CR
               txt←((txt⍳'{')-1)↓((≢txt)+1-(⌽txt)⍳'}')↑txt
@@ -939,7 +928,7 @@
                   ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setcfg_err_json')
                   →endSel
               :EndTrap
-              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'privacy_url'
+              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name'
                   :If 2=new.⎕NC fld
                       newval←new⍎fld
                       :If (2≠cfg.⎕NC fld)∨newval≢cfg⍎fld
@@ -966,6 +955,24 @@
           E SendLog StartOfLog
       :EndIf
     ∇
+
+    ∇ Mid SendHelp replyTo;purl
+          plain←⍙'help_plain'
+          html←⍙'help_html'
+      :If IsAdmin E.sender
+          plain,←⍙'help_admin_plain'
+          html,←⍙'help_admin_html'
+      :EndIf
+      :If 0<≢purl←PrivacyURL
+          plain←plain,⍙'privacy_link_plain'purl
+          html←html,⍙'privacy_link_html'purl
+      :EndIf
+     
+      plain←∊plain,⊂⎕UCS 10
+      html←∊html,⊂⎕UCS 10
+      ('In-Reply-To'Mid)SendMail replyTo('[',CFG.handler_cfg.list_name,']',⍙'helptit')plain html
+    ∇
+
 
     ∇ DevAction E;t;cmd1;mid;prefix;replyTo;StartOfLog
       :Access public
@@ -1222,15 +1229,16 @@
           :ElseIf part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
               htmlPart←part
               pt←part.Text
+              pt←FixBrokenEntities pt
      
     ⍝ Fade existing Alisia header/footer.
-              :If (∨/'alisia_header'⍷pt)∨(∨/'linear-gradient'⍷pt)∧∨/'Lucida'⍷pt
-                  'DBG' 'SYS'Log'[fade] alisia_header/Lucida-Gradient gefunden – Styles anpassen'
+              :If (∨/'alisia_header'⍷pt)∨((∨/'lucida'⍷⎕C pt)∧((∨/'linear-gradient'⍷⎕C pt)∨(∨/'background'⍷⎕C pt)))
+                  'DBG' 'SYS'Log'[fade] alisia_header/legacy Lucida styles gefunden - Styles anpassen'
                   st←GetStyles
-                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
-                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top[^>]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
               :Else
-                  'DBG' 'SYS'Log'[fade] no alisia_header/Lucida-Gradient in HTML'
+                  'DBG' 'SYS'Log'[fade] no alisia_header/legacy Lucida styles in HTML'
               :EndIf
      
     ⍝ Check if <body> tag exists
@@ -1238,7 +1246,7 @@
         ⍝ Insert header after <body>
                   pt←('<body([^>]*)>'⎕R('<body\1>',CRLF,ht,CRLF)⍠('IC' 1)('Mode' 'D'))pt
         ⍝ Insert footer before </body>
-                  pt←('</body>'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
+                  pt←('</body\s*>(?!.*</body\s*>)'⎕R(CRLF,hb,CRLF,'</body>')⍠'IC' 1⍠'Mode' 'D')pt
               :Else
         ⍝ No body tag → wrap everything
                   pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
@@ -1479,20 +1487,28 @@
       ⍝ dateStr: pre-captured date string (email.Date.DateTime must be read before Headers.Clear)
       (d h m)←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
       s←⊃GetStyles  ⍝ Level-0 style (fresh/outermost)
-      ht←'<!--alisia_header--><div class="alisia_header" style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}⍙'add_top_html'dateStr orig_from),'</div>'
-      bi←{1<≡⍵:∊⍵ ⋄ ⍵}⍙'add_bot_html'd h m #.Config.version  ⍝ HTML footer content before wrapping
-      bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}⍙'add_bot_text'd h m #.Config.version  ⍝ plain text footer
-      :If 0<≢purl←{6::'' ⋄ cfg.##.handler_cfg.privacy_url}⍬
+      ht←'<!--alisia_header--><div class="alisia_header" style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_top_html'dateStr orig_from))),'</div>'
+      bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html'd h m #.Config.version))  ⍝ HTML footer content before wrapping
+      bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text'd h m #.Config.version))  ⍝ plain text footer
+      :If 0<≢purl←PrivacyURL
           bi,←⍙'privacy_link_html'purl  ⍝ append inside footer div
           bt,←CRLF,⍙'privacy_link_text'purl
       :EndIf
       hb←'<!--alisia_footer--><div class="alisia_footer" style="',s.footer,'">',bi,'</div>'
-      r←ht hb({1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}⍙'add_top_text'dateStr orig_from)bt
+      r←ht hb({1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_top_text'dateStr orig_from)))bt
+    ∇
+
+    ∇ r←FixBrokenEntities t;rep
+            ⍝ Repair common German HTML entities when the leading '&' is missing in broken legacy HTML.
+      r←t
+      :For rep :In ('auml;' 'ä')('ouml;' 'ö')('uuml;' 'ü')('Auml;' 'Ä')('Ouml;' 'Ö')('Uuml;' 'Ü')('szlig;' 'ß')
+          r←(('(?<!&)',1⊃rep)⎕R(2⊃rep)⍠'Mode' 'D')r
+      :EndFor
     ∇
 
     ∇ SaveCfg;flds;fld;ovrd
       ⍝ Persist editable cfg fields to cfg_overrides.json for reload after restart
-      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'privacy_url'
+      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name'
       flds←flds/⍨2=cfg.⎕NC¨flds
       ovrd←⎕NS''
       :For fld :In flds
@@ -1515,6 +1531,11 @@
           z[i]←⊂d
           (⊂(⎕JSON⍠'Compact' 0)z)⎕NPUT file 1
       :EndIf
+    ∇
+
+    ∇ r←PrivacyURL
+      :Access public
+      r←'http',(#.Triggers.Config.JarvisSecure/'s'),'://',#.Triggers.Config.(JarvisHost{⍺,('80'≢⍕⍵)/':',⍕⍵}JarvisPort),'/'
     ∇
 
 :endclass

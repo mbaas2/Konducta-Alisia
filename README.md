@@ -1,6 +1,6 @@
 # Alisia
 
-Mailing list server built on the [Konducata](https://github.com/mbaas2/Konducata)
+Mailing list server built on the [Konducta](https://github.com/mbaas2/Konducta)
 framework, written in Dyalog APL.
 
 Alisia handles subscription management, message distribution, admin commands,
@@ -9,17 +9,17 @@ mailing lists.
 
 ## Dependencies
 
-- **Konducata** — provides the runtime, rule engine, and `eventler_Handler` base class
+- **Konducta** — provides the runtime, rule engine, and `eventler_Handler` base class
 - **Dyalog APL 20+** with .NET 8
 - **MimeKit / MailKit** (loaded automatically via NuGet at startup)
 
 ## Deployment
 
-Alisia is loaded by Konducata at startup via the `ALISIA_HOME` environment variable.
+Alisia is loaded by Konducta at startup via the `ALISIA_HOME` environment variable.
 The deployment configuration (POP3/SMTP credentials, list names, rules) lives in a
-separate config repo (e.g. **APLde-Konducata**).
+separate config repo (e.g. **APLde-Konducta**).
 
 ## Related Repos
 
-- **Konducata** — the event framework
-- **APLde-Konducata** — APL Germany deployment configuration
+- **Konducta** — the event framework
+- **APLde-Konducta** — APL Germany deployment configuration
