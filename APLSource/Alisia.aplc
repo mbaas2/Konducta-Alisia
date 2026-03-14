@@ -9,7 +9,7 @@
             :Access public
       ⍝ Lazy-load level styles from Config/alisia_styles.json5 (cached in shared field)
       :If 0=≢styles
-            styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(#.Home,'alisia_styles.json5')
+            styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(#.Home,'Config/alisia_styles.json5')
       :EndIf
       r←styles
     ∇
@@ -494,7 +494,7 @@
                   :EndIf
               :EndFor
               :If 0<≢log
-                  d SaveSubscriber
+                  SaveSubscriber d
                   'INFO' 'SUB'Log('setmydata: ',log)(⊆d.email)
                   ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)((⍙'setmydata_reply'),log)
               :Else
@@ -558,7 +558,7 @@
               d←GetData E.sender
               :If d≡0 ⋄ →0 ⋄ :EndIf
               d.disabled←1
-              d SaveSubscriber
+              SaveSubscriber d
               'INFO' 'SUB'Log'nomail'(⊆d.email)
               ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'nomail_reply')
      
@@ -566,7 +566,7 @@
               d←GetData E.sender
               :If d≡0 ⋄ →0 ⋄ :EndIf
               d.disabled←0
-              d SaveSubscriber
+              SaveSubscriber d
               'INFO' 'SUB'Log'mail'(⊆d.email)
               ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'mail_reply')
      
@@ -699,13 +699,16 @@
                                   :If part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
                                   :AndIf ~part.IsAttachment
                                       pt←part.Text
+                                      :If (⎕UCS 65533)∊pt  ⍝ U+FFFD: declared charset does not match content (e.g. Windows-1252 declared as UTF-8)
+                                          :Trap 0 ⋄ pt←part.GetText'windows-1252' ⋄ :EndTrap
+                                      :EndIf
                                       pt←FixBrokenEntities pt
                                           ⍝ Existing Alisia header/footer: apply depth-dependent style
                                       :If (∨/'alisia_header'⍷pt)∨((∨/'lucida'⍷⎕C pt)∧((∨/'linear-gradient'⍷⎕C pt)∨(∨/'background'⍷⎕C pt)))
                                           'DBG' 'SYS'Log'[GETMSGS fade] alisia_header/legacy Lucida styles found - adjusting styles'
                                           st←GetStyles
                                           pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
-                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top[^>]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
                                       :EndIf
                                           ⍝ Insert ht/hb into HTML
                                       :If ∨/'<body'⍷⎕C pt
@@ -1231,13 +1234,13 @@
               htmlPart←part
               pt←part.Text
               pt←FixBrokenEntities pt
-     
+
     ⍝ Fade existing Alisia header/footer.
               :If (∨/'alisia_header'⍷pt)∨((∨/'lucida'⍷⎕C pt)∧((∨/'linear-gradient'⍷⎕C pt)∨(∨/'background'⍷⎕C pt)))
                   'DBG' 'SYS'Log'[fade] alisia_header/legacy Lucida styles gefunden - Styles anpassen'
                   st←GetStyles
-                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
-                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top[^>]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1⌈(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1⌈(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
               :Else
                   'DBG' 'SYS'Log'[fade] no alisia_header/legacy Lucida styles in HTML'
               :EndIf
@@ -1489,8 +1492,8 @@
       (d h m)←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
       s←⊃GetStyles  ⍝ Level-0 style (fresh/outermost)
       ht←'<!--alisia_header--><div class="alisia_header" style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_top_html'dateStr orig_from))),'</div>'
-      bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html'd h m #.Config.version))  ⍝ HTML footer content before wrapping
-      bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text'd h m #.Config.version))  ⍝ plain text footer
+      bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html' d h m #.Config.version))  ⍝ HTML footer content before wrapping
+      bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text' d h m #.Config.version))  ⍝ plain text footer
       :If 0<≢purl←PrivacyURL
           bi,←⍙'privacy_link_html'purl  ⍝ append inside footer div
           bt,←CRLF,⍙'privacy_link_text'purl
@@ -1518,7 +1521,7 @@
       (⊂(⎕JSON⍠'Compact' 0)ovrd)⎕NPUT(CFG.config.Folder,'cfg_overrides.json')1
     ∇
 
-    ∇ d SaveSubscriber;z;i;file
+    ∇ SaveSubscriber d;z;i;file
       ⍝ Update the subscriber record matching d.email, saving to subscribers.json
       ⍝ Reads the file directly (no mode filtering) to avoid corrupting the dataset
       file←CFG.config.Folder,'subscribers.json'
@@ -1538,5 +1541,16 @@
       :Access public
       r←'http',(#.Triggers.Config.JarvisSecure/'s'),'://',#.Triggers.Config.(JarvisHost{⍺,('80'≢⍕⍵)/':',⍕⍵}JarvisPort),'/'
     ∇
+
+⍝─── Jarvis Endpoints
+∇ R←req confirm arg
+⎕TRAP←0'S' ⋄ (⎕lc[1]+1)⎕stop 1⊃⎕xsi
+∇
+
+∇ R←req unsubscribe arg
+⎕TRAP←0'S' ⋄ (⎕lc[1]+1)⎕stop 1⊃⎕xsi
+∇
+
+
 
 :endclass
