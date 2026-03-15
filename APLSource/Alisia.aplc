@@ -1116,7 +1116,7 @@
       (⊂(⎕JSON⍠'Compact' 0)data)⎕NPUT file 1
     ∇
 
-    ∇ res_ns←SendAndAdd2Digest E;t;p;sub;e;c;s;msg;nam;smtp_cfg;Subject;res;hd;headers;file;orig_from;mmsg;email;ht;hb;tt;tb;b;smtp;txt;orig;data_folder;data;rx;part;⎕TRAP;ti;chunk;multipart;i;attachments;iter;multiparts;∆;len;h;y;htmlPart;textPart;inlineImages;inlineImagesNoCid;pt;alternative;cleanText;related;img;keptAttachments;mixed;blacklist;⎕TRAP
+    ∇ res_ns←SendAndAdd2Digest E;t;p;sub;e;c;s;msg;nam;smtp_cfg;Subject;res;hd;headers;file;orig_from;mmsg;email;ht;hb;tt;tb;b;smtp;txt;orig;data_folder;data;rx;part;⎕TRAP;ti;chunk;multipart;i;attachments;iter;multiparts;∆;len;h;y;htmlPart;textPart;inlineImages;inlineImagesNoCid;pt;alternative;cleanText;related;img;keptAttachments;mixed;blacklist;⎕TRAP;opts
       :Access public
       blacklist←GetBlacklist
      
@@ -1348,6 +1348,8 @@
       smtp←⎕NEW SmtpClient
       smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
       smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
+      opts←FormatOptions.Default.Clone()
+      opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
       ⍝ Clear addresses...
       email.To.Clear
       email.To.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
@@ -1361,13 +1363,13 @@
               email.WriteTo file CancellationToken
           :EndFor
           email.Date←DateTimeOffset.Now
-          smtp.Send(email CancellationToken ⎕NULL)
+          smtp.Send(opts email CancellationToken ⎕NULL)
       :EndFor
       smtp.Disconnect 1 CancellationToken
     ∇
 
 
-    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;msg;mmsg;smtp_cfg;smtp
+    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;msg;mmsg;smtp_cfg;smtp;opts
       :Access public
       msg←⎕NEW BodyBuilder
       ⍝ ⍵=To Title Body [Html[bcc]]
@@ -1401,9 +1403,9 @@
       smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
       smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
       mmsg.Date←DateTimeOffset.Now
-     
-     
-      r←smtp.Send(mmsg CancellationToken ⎕NULL)
+      opts←FormatOptions.Default.Clone()
+      opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
+      r←smtp.Send(opts mmsg CancellationToken ⎕NULL)
       'DBG' 'SMTP'Log'smtp.Send "',(2⊃ToTitBody_Html_bcc),'" → ',(⍕1⊃ToTitBody_Html_bcc),': ',r
       r←200≠⊃2⊃⎕VFI r~'.'
       smtp.Disconnect 1 CancellationToken
@@ -1418,7 +1420,7 @@
       r←hdr SendMail ToTitBody_Html_bcc
     ∇
 
-    ∇ r←{AddHeaders}SendMimeMsg mmsg;smtp_cfg;smtp
+    ∇ r←{AddHeaders}SendMimeMsg mmsg;smtp_cfg;smtp;opts
       ⍝ Send a ready-built MimeMessage via SMTP (for GETMSGS single-email)
       :If 0=⎕NC'AddHeaders' ⋄ AddHeaders←⍬ ⋄ :EndIf
       AddHeaders←,AddHeaders
@@ -1433,7 +1435,9 @@
       smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
       smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
       mmsg.Date←DateTimeOffset.Now
-      r←smtp.Send(mmsg CancellationToken ⎕NULL)
+      opts←FormatOptions.Default.Clone()
+      opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
+      r←smtp.Send(opts mmsg CancellationToken ⎕NULL)
       'DBG' 'SMTP'Log'smtp.Send (SendMimeMsg) → ',(⍕mmsg.To),': ',r
       r←200≠⊃2⊃⎕VFI r~'.'
       smtp.Disconnect 1 CancellationToken
