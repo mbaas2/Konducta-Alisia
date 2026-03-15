@@ -1159,7 +1159,7 @@
      
       hd←ExtractMimeHeaders email
       ⍝msg.BodyIsRawMessage←1
-      hd⍪←'Subject'Subject
+      
       ⍝ RFC 2369 / RFC 2919 List-* Headers
       hd⍪←'List-Id'(cfg.list_name,' <',⎕C cfg.name_short,'.',(cfg.smtp_from↓⍨cfg.smtp_from⍳'@'),'>')
       hd⍪←'List-Unsubscribe'('<mailto:',cfg.smtp_from,'?subject=UNSUBSCRIBE>')
