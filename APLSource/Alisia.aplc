@@ -1348,7 +1348,7 @@
       smtp←⎕NEW SmtpClient
       smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
       smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
-      opts←FormatOptions.Default.Clone()
+      opts←FormatOptions.Default.Clone
       opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
       ⍝ Clear addresses...
       email.To.Clear
@@ -1403,7 +1403,7 @@
       smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
       smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
       mmsg.Date←DateTimeOffset.Now
-      opts←FormatOptions.Default.Clone()
+      opts←FormatOptions.Default.Clone
       opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
       r←smtp.Send(opts mmsg CancellationToken ⎕NULL)
       'DBG' 'SMTP'Log'smtp.Send "',(2⊃ToTitBody_Html_bcc),'" → ',(⍕1⊃ToTitBody_Html_bcc),': ',r
@@ -1435,7 +1435,7 @@
       smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
       smtp.Authenticate(smtp_cfg[3 4],CancellationToken)
       mmsg.Date←DateTimeOffset.Now
-      opts←FormatOptions.Default.Clone()
+      opts←FormatOptions.Default.Clone
       opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
       r←smtp.Send(opts mmsg CancellationToken ⎕NULL)
       'DBG' 'SMTP'Log'smtp.Send (SendMimeMsg) → ',(⍕mmsg.To),': ',r
