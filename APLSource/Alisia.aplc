@@ -1543,7 +1543,7 @@
 
     ∇ r←PrivacyURL
       :Access public
-      r←'http',(#.Triggers.Config.JarvisSecure/'s'),'://',#.Triggers.Config.(JarvisHost{⍺,('80'≢⍕⍵)/':',⍕⍵}JarvisPort),'/alisia/'
+      r←'http',(#.Triggers.Config.JarvisSecure/'s'),'://',#.Triggers.Config.(JarvisHost{⍺,('80'≢⍕⍵)/':',⍕⍵}JarvisPort),'/alisia'
     ∇
 
 ⍝─── Jarvis Endpoints
