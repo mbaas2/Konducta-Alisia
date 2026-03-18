@@ -1168,6 +1168,9 @@
       hd⍪←'List-Subscribe'('<mailto:',cfg.smtp_from,'?subject=SUBSCRIBE>')
       hd⍪←'Precedence' 'list'
       origDate←⍕email.Date.DateTime  ⍝ capture before Headers.Clear wipes the Date field
+      :If 0<≢(⍙'datefmt')~' '
+          origDate←(⍙'datefmt')(1200⌶)1 ⎕DT⊂email.Date.DateTime.(Year Month Day Hour Minute Second Millisecond)
+      :EndIf
       email.Headers.Clear
       :For h :In ↓hd
           :If ⎕NULL≢2⊃h
