@@ -704,7 +704,7 @@
                                       :EndIf
                                       pt←FixBrokenEntities pt
                                           ⍝ Existing Alisia header/footer: apply depth-dependent style
-                                      :If (∨/'alisia_header'⍷pt)∨((∨/'lucida'⍷⎕C pt)∧((∨/'linear-gradient'⍷⎕C pt)∨(∨/'background'⍷⎕C pt)))
+                                      :If (∨/'alisia_header'⍷pt)∨(0<≢'<div\b[^>]*lucida'⎕S 0⊢⎕C pt)
                                           'DBG' 'SYS'Log'[GETMSGS fade] alisia_header/legacy Lucida styles found - adjusting styles'
                                           st←GetStyles
                                           pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
@@ -1239,7 +1239,7 @@
               pt←FixBrokenEntities pt
 
     ⍝ Fade existing Alisia header/footer.
-              :If (∨/'alisia_header'⍷pt)∨((∨/'lucida'⍷⎕C pt)∧((∨/'linear-gradient'⍷⎕C pt)∨(∨/'background'⍷⎕C pt)))
+              :If (∨/'alisia_header'⍷pt)∨(0<≢'<div\b[^>]*lucida'⎕S 0⊢⎕C pt)
                   'DBG' 'SYS'Log'[fade] alisia_header/legacy Lucida styles gefunden - Styles anpassen'
                   st←GetStyles
                   pt←(('<div\b[^>]*alisia_header[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*border-left[^;]*3px\s+solid)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1⌈(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
