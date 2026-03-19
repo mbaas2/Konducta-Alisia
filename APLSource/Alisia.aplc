@@ -1281,13 +1281,26 @@
           :ElseIf part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
               htmlPart←part
               pt←part.Text
+              :If (⎕UCS 65533)∊pt
+                  'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach part.Text - Korruption kommt von MimeKit!'
+              :Else
+                  'DBG' 'SYS'Log'[HTML dbg] part.Text OK - kein U+FFFD'
+              :EndIf
               pt←FixBrokenEntities pt
+              :If (⎕UCS 65533)∊pt
+                  'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach FixBrokenEntities!'
+              :EndIf
 
     ⍝ Phase 1: normalize Outlook-converted alisia headers back to canonical table form.
               pt←NormalizeOutlookHeaders pt
+              :If (⎕UCS 65533)∊pt
+                  'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach NormalizeOutlookHeaders!'
+              :EndIf
     ⍝ Phase 2: fade/restyle all alisia header/footer elements with depth-appropriate styles.
               :If (∨/'alisia_header'⍷pt)∨(0<≢'<(?:div|table)\b[^>]*[Ll]ucida'⎕S 0⊢⎕C pt)
                   'DBG' 'SYS'Log'[fade] alisia_header/legacy Lucida styles gefunden - Styles anpassen'
+                  'DBG' 'SYS'Log'[depth] <blockquote> in HTML: ',(⍕+/'<blockquote'⍷⎕C pt),' open, ',(⍕+/'</blockquote'⍷⎕C pt),' close'
+                  {bef←⍵↑⎕C pt ⋄ d←1⌈(+/'<blockquote'⍷bef)-(+/'</blockquote'⍷bef) ⋄ 'DBG' 'SYS'Log'[depth] alisia element bei offset ',(⍕⍵),' → depth=',⍕d}¨('<(?:table|div)\b[^>]*alisia_(?:header|footer)[^>]*>'⎕S{⊃⍵.Offsets}⍠'Mode' 'D')pt
                   st←GetStyles
                   ⍝ Patterns: (1) <div class="alisia_header">  (2) <table class="alisia_header"><tr><td>
                   ⍝           (3) legacy linear-gradient div   (4)+(5) legacy border-bottom/border-left divs
