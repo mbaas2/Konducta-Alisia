@@ -445,8 +445,6 @@
       :If 2=#.Config.⎕NC'handlerRepos'
           :For repo :In #.Config.handlerRepos
               ⍝:Trap 0
-              ⎕TRAP←0'S' ⋄ (⎕lc[1]+1)⎕stop 1⊃⎕xsi
-                  vn,←⊂(⍎repo.namespace,'.',{2=repo.⎕NC'class':repo.class ⋄ ((⍎ns).⎕nl-9){(⍺⍳⍥⎕c⍵)⊃⍺}⊂repo.name}0).version
               ⍝:EndTrap
           :EndFor
       :EndIf
@@ -1551,7 +1549,6 @@
       ht←'<!--alisia_header--><table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_top_html'dateStr orig_from))),'</td></tr></table>'
       bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html' d h m version))  ⍝ HTML footer content before wrapping
       ⎕←bi
-      ⎕TRAP←0'S' ⋄ (⎕lc[1]+1)⎕stop 1⊃⎕xsi
       bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text' d h m version))  ⍝ plain text footer
       :If 0<≢purl←PrivacyURL
           bi,←⍙'privacy_link_html'purl  ⍝ append inside footer table cell
@@ -1625,7 +1622,6 @@
       :endif
       req.SetContentType'text/html; charset=utf-8'
       ⎕←R
-          ⎕TRAP←0'S' ⋄ (⎕lc[1]+1)⎕stop 1⊃⎕xsi
 ∇
 
 ∇ R←req unsubscribe arg
