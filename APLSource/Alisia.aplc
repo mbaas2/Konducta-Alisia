@@ -444,8 +444,11 @@
       vn←,⊂'Konducta' #.Config.version
       :If 2=#.Config.⎕NC'handlerRepos'
           :For repo :In #.Config.handlerRepos
-              ⍝:Trap 0
-              ⍝:EndTrap
+              :Trap 0
+               vn,←⊂(⍎repo.namespace,'.',{2=repo.⎕NC'class':repo.class ⋄ ((⍎ns).⎕nl-9){(⍺⍳⍥⎕c⍵)⊃⍺}⊂repo.name}0).version
+               :else 
+               'ERR' 'SYS'Log'Get handler version info: ',⎕JSON ⎕DMX
+              :EndTrap
           :EndFor
       :EndIf
       html,←'<tr style="background:#dbe6f5;border-top:2px solid #8aa7cc;"><td colspan="2" style="font-weight:700;text-align:center;">',vhdr,'</td></tr>',LF
