@@ -23,19 +23,15 @@
       r←'(?:#',h,'|rgb\(\s*',(¯4↓∊(⍕¨vals),¨⊂'\s*,\s*'),'\))'
     ∇
 
-    ∇ pt←NormalizeOutlookHeaders pt;st;bgHexes;bgPats;bgAlt;pat
-      ⍝ Phase 1 resilience: collapse Outlook-reformatted alisia_header elements back to
+    ∇ pt←NormalizeOutlookHeaders pt;st;bgHexes;bgPats;bgAlt;pat;pats
+      ⍝ Phase 1 resilience: collapse email-client-reformatted alisia_header elements back to
       ⍝ canonical <table class="alisia_header"> form, before depth-based re-styling.
       ⍝
-      ⍝ When Outlook creates a reply, it converts our table/div:
-      ⍝   <table class="alisia_header" style="background:#dbe6f5;...Lucida...">
-      ⍝ into a multi-element structure:
-      ⍝   <div style="border-color:...rgb(138,167,204)...">
-      ⍝     <p style="background:0% 0% repeat rgb(219,230,245)">
-      ⍝       <b><span style="font-family:'Lucida Console'...">Am DATE schrieb NAME:</span></b>
-      ⍝     </p></div>
-      ⍝
-      ⍝ We detect by: non-alisia <div> containing our specific background RGB + Lucida + header text.
+      ⍝ Three client patterns handled:
+      ⍝ 1. Outlook <div>: outer <div> (no alisia_header) + bg color + Lucida <span> + header text
+      ⍝ 2. Gmail <table>: <td> has Alisia bg color AND Lucida directly in td style, text ends ':'
+      ⍝ 3. Outlook MsoNormalTable: <table class="MsoNormalTable">, Alisia bg in <td>,
+      ⍝    Lucida in inner <span>, text ends ':'
       st←GetStyles
       bgHexes←('[\s\S]*(?i)background\s*:\s*#([0-9a-fA-F]{6})[\s\S]*'⎕R'\1'⍠'Mode' 'D')¨st.header
       bgHexes←bgHexes/⍨6=≢¨bgHexes                ⍝ keep only valid 6-char hex values
@@ -43,14 +39,19 @@
       bgPats←Hex2RgbPat¨bgHexes
       bgAlt←¯1↓∊bgPats,¨'|'                        ⍝ alternation of all bg color patterns
       :If 0=≢(('(?i)(?:',bgAlt,')')⎕S 0)pt ⋄ →0 ⋄ :EndIf  ⍝ fast exit: none of our colors in HTML
-      ⍝ Pattern: outer <div> (no alisia_header class) that contains our bg color, then a
-      ⍝ Lucida Console <span> whose text content is the header line (ends with ':').
-      ⍝ The (?:<u...></u>)* handles the <u></u> artifacts Outlook appends inside the span.
-      pat←'<div\b(?![^>]*alisia_header)(?=[^>]*>[\s\S]{0,400}?[Bb]ackground[^;>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,400}?<span\b[^>]*[Ll]ucida[^>]*>([^<]+:)(?:<u[^>]*>[\s\S]{0,50}?</u>)*[\s\S]{0,100}?</div>'
-      pt←(pat ⎕R {
-        txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt
-        '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'
-      }⍠'Mode' 'D')pt
+      ⍝ Pattern 1: Outlook <div> — non-alisia <div> containing bg color, then Lucida <span> with header text
+      ⍝ The (?:<u...></u>)* handles <u></u> artifacts Outlook appends inside the span.
+      pats←⊂'<div\b(?![^>]*alisia_header)(?=[^>]*>[\s\S]{0,400}?[Bb]ackground[^;>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,400}?<span\b[^>]*[Ll]ucida[^>]*>([^<]+:)(?:<u[^>]*>[\s\S]{0,50}?</u>)*[\s\S]{0,100}?</div>'
+      ⍝ Pattern 2: Gmail <table> — no alisia_header class; <td> has Alisia bg AND Lucida in its own style
+      pats,←⊂'<table\b(?![^>]*alisia_header)[^>]*>[\s\S]{0,100}?<td\b(?=[^>]*(?:',bgAlt,'))(?=[^>]*[Ll]ucida)[^>]*>([^<]+:)[\s\S]{0,100}?</table>'
+      ⍝ Pattern 3: Outlook MsoNormalTable — Alisia bg in <td>, Lucida in inner <span>
+      pats,←⊂'<table\b(?=[^>]*MsoNormalTable)[^>]*>[\s\S]{0,300}?<td\b(?=[^>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,200}?<span\b[^>]*[Ll]ucida[^>]*>([^<]+:)[\s\S]{0,200}?</table>'
+      :For pat :In pats
+          pt←(pat ⎕R {
+            txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt
+            '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'
+          }⍠'Mode' 'D')pt
+      :EndFor
     ∇
 
     ∇ r←GetCommand subj        ⍝ remove possible redirection from subject line
@@ -1187,12 +1188,20 @@
       email←mmsg.Load p CancellationToken
      
       ti←E.subject   ⍝ from our json file
+      :If (⎕UCS 65533)∊ti
+          'WARN' 'SYS'Log'[subject dbg] U+FFFD in E.subject beim Einlesen!'
+      :EndIf
       rx←⍙'mailPrefix_tit'(cfg.name_short)'\d*'
       rx←('['⎕R'\['⍠'Regex' 0)rx
       :While ∆≢ti←(rx ⎕R''⍠'IC' 1)∆←ti
       :EndWhile   ⍝ keep removing prefixes until there are no more
-     
+
       Subject←(⍙'mailPrefix_tit'(cfg.name_short)(⍕c)),' ',ti
+      :If (⎕UCS 65533)∊Subject
+          'WARN' 'SYS'Log'[subject dbg] U+FFFD in Subject vor email.Subject←!'
+      :Else
+          'DBG' 'SYS'Log'[subject dbg] Subject OK: ',Subject
+      :EndIf
       E.Subject←Subject
      
       ⍝ set From header
