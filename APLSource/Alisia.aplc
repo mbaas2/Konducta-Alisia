@@ -1231,6 +1231,7 @@
               email.Headers.Add h
           :EndIf
       :EndFor
+      email.Headers.Add 'Alisia-In'E.Filename
      
       ⍝ Note on line-endings: msg is read from file, so it only has LF.
       ⍝ We need to expand this to CRLF before calling SendMai!l
@@ -1313,10 +1314,11 @@
                   st←GetStyles
                   ⍝ Patterns: (1) <div class="alisia_header">  (2) <table class="alisia_header"><tr><td>
                   ⍝           (3) legacy linear-gradient div   (4)+(5) legacy border-bottom/border-left divs
-                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*border-left[^;]*3px\s+solid)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1⌈(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*border-left[^;]*3px\s+solid)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
                   ⍝ Patterns: (1) <div class="alisia_footer">  (2) <table class="alisia_footer"><tr><td>
                   ⍝           (3) legacy linear-gradient div   (4) legacy border-top div
-                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1⌈(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                  ⍝           (5) Gmail-quoted <table>: class stripped, border-top:2px+Lucida in <td>
+                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>' '<table\b(?![^>]*alisia_(?:footer|header))[^>]*>[\s\S]{0,150}?<td\b(?=[^>]*[Ll]ucida)(?=[^>]*border-top(?:-width)?:[^;]*2px)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
               :Else
                   'DBG' 'SYS'Log'[fade] no alisia_header/legacy Lucida styles in HTML'
               :EndIf
@@ -1435,8 +1437,8 @@
           :For nam :In chunk
               email.Bcc.Add(⎕NEW MailboxAddress nam.(name email))
       ⍝ TODO: don't save every mail once beta is over...
-              file←∊(2↑⎕NPARTS p),'.',nam.email,3⊃⎕NPARTS p
-              email.WriteTo file CancellationToken
+            ⍝   file←∊(2↑⎕NPARTS p),'.',nam.email,3⊃⎕NPARTS p
+            ⍝   email.WriteTo file CancellationToken
           :EndFor
           email.Date←DateTimeOffset.Now
           smtp.Send(opts email CancellationToken ⎕NULL)
