@@ -1,7 +1,7 @@
 :class Alisia : #.KonductaHandler
     :field private  shared    CR←⎕UCS 13
     :field private  shared    LF←⎕UCS 10
-    :field private shared      CRLF←⎕UCS 13 10
+    :field private shared      CRLF←CR,LF
     :field private shared      styles←⍬
     :field public shared devCmds←'DETRAP' 'RETRAP'
     :field public shared version←'N/A'
@@ -452,7 +452,7 @@
       :If 2=#.Config.⎕NC'handlerRepos'
           :For repo :In #.Config.handlerRepos
               :Trap 0
-               vn,←⊂(⍎repo.namespace,'.',{2=repo.⎕NC'class':repo.class ⋄ ((⍎ns).⎕nl-9){(⍺⍳⍥⎕c⍵)⊃⍺}⊂repo.name}).version
+                   vn,←⊂repo.name ((repo.namespace⍎{2=⍵.⎕NC'class':⍵.class ⋄ ((⍎⍵.namespace).⎕NL-9){(⍺⍳⍥⎕C ⍵)⊃⍺}⊂⍵.name}repo).version)
                :else 
                'ERR' 'SYS'Log'Get handler version info: ',⎕JSON ⎕DMX
               :EndTrap
@@ -1672,7 +1672,6 @@
 :access public
 ⎕TRAP←0'S' ⋄ (⎕lc[1]+1)⎕stop 1⊃⎕xsi
 ∇
-
 
 
 :endclass
