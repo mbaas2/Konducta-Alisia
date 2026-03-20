@@ -4,6 +4,12 @@
     :field private shared      CRLF←⎕UCS 13 10
     :field private shared      styles←⍬
     :field public shared devCmds←'DETRAP' 'RETRAP'
+    :field public shared version←'N/A'
+
+    ∇ SetVersion v
+      :Access public shared
+      version←v
+    ∇
 
         ∇ r←GetStyles;home
             :Access public
@@ -446,7 +452,7 @@
       :If 2=#.Config.⎕NC'handlerRepos'
           :For repo :In #.Config.handlerRepos
               :Trap 0
-               vn,←⊂(⍎repo.namespace,'.',{2=repo.⎕NC'class':repo.class ⋄ ((⍎ns).⎕nl-9){(⍺⍳⍥⎕c⍵)⊃⍺}⊂repo.name}0).version
+               vn,←⊂(⍎repo.namespace,'.',{2=repo.⎕NC'class':repo.class ⋄ ((⍎ns).⎕nl-9){(⍺⍳⍥⎕c⍵)⊃⍺}⊂repo.name}).version
                :else 
                'ERR' 'SYS'Log'Get handler version info: ',⎕JSON ⎕DMX
               :EndTrap
