@@ -50,7 +50,7 @@
           pt←(pat ⎕R {
             txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt
             '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'
-          }⍠'Mode' 'D')pt
+          }⍠('Mode' 'D')(IC' 1))pt
       :EndFor
     ∇
 
@@ -1292,7 +1292,18 @@
               htmlPart←part
               pt←part.Text
               :If (⎕UCS 65533)∊pt
-                  'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach part.Text - Korruption kommt von MimeKit!'
+                  'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach part.Text - versuche GetText utf-8'
+                  :Trap 0
+                      pt←part.GetText⊂'utf-8'
+                      :If (⎕UCS 65533)∊pt
+                          'WARN' 'SYS'Log'[HTML dbg] U+FFFD auch nach GetText utf-8 - Korruption in Source'
+                      :Else
+                          'INFO' 'SYS'Log'[HTML dbg] GetText utf-8 OK - MimeKit Charset-Erkennung war falsch'
+                      :EndIf
+                  :Else
+                      'WARN' 'SYS'Log'[HTML dbg] GetText utf-8 fehlgeschlagen - behalte part.Text'
+                      pt←part.Text
+                  :EndTrap
               :Else
                   'DBG' 'SYS'Log'[HTML dbg] part.Text OK - kein U+FFFD'
               :EndIf
