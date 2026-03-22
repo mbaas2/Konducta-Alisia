@@ -11,11 +11,11 @@
       version←v
     ∇
 
-        ∇ r←GetStyles;home
-            :Access public
+    ∇ r←GetStyles;home
+      :Access public
       ⍝ Lazy-load level styles from Config/alisia_styles.json5 (cached in shared field)
       :If 0=≢styles
-            styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(#.Home,'Config/alisia_styles.json5')
+          styles←(⎕JSON⍠'Dialect' 'JSON5')⊃⎕NGET(#.Home,'Config/alisia_styles.json5')
       :EndIf
       r←styles
     ∇
@@ -34,10 +34,10 @@
       ⍝ canonical <table class="alisia_header"> form, before depth-based re-styling.
       ⍝
       ⍝ Three client patterns handled:
-      ⍝ 1. Outlook <div>: outer <div> (no alisia_header) + bg color + Lucida <span> + header text
-      ⍝ 2. Gmail <table>: <td> has Alisia bg color AND Lucida directly in td style, text ends ':'
+      ⍝ 1. Outlook <div>: outer <div> (no alisia_header) + bg color + AlisiaFixed <span> + header text
+      ⍝ 2. Gmail <table>: <td> has Alisia bg color AND AlisiaFixed directly in td style, text ends ':'
       ⍝ 3. Outlook MsoNormalTable: <table class="MsoNormalTable">, Alisia bg in <td>,
-      ⍝    Lucida in inner <span>, text ends ':'
+      ⍝    AlisiaFixed in inner <span>, text ends ':'
       st←GetStyles
       bgHexes←('[\s\S]*(?i)background\s*:\s*#([0-9a-fA-F]{6})[\s\S]*'⎕R'\1'⍠'Mode' 'D')¨st.header
       bgHexes←bgHexes/⍨6=≢¨bgHexes                ⍝ keep only valid 6-char hex values
@@ -47,16 +47,13 @@
       :If 0=≢(('(?i)(?:',bgAlt,')')⎕S 0)pt ⋄ →0 ⋄ :EndIf  ⍝ fast exit: none of our colors in HTML
       ⍝ Pattern 1: Outlook <div> — non-alisia <div> containing bg color, then Lucida <span> with header text
       ⍝ The (?:<u...></u>)* handles <u></u> artifacts Outlook appends inside the span.
-      pats←⊂'<div\b(?![^>]*alisia_header)(?=[^>]*>[\s\S]{0,400}?[Bb]ackground[^;>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,400}?<span\b[^>]*[Ll]ucida[^>]*>([^<]+:)(?:<u[^>]*>[\s\S]{0,50}?</u>)*[\s\S]{0,100}?</div>'
+      pats←⊂'<div\b(?![^>]*alisia_header)(?=[^>]*>[\s\S]{0,400}?[Bb]ackground[^;>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,400}?<span\b[^>]*AlisiaFixed[^>]*>([^<]+:)(?:<u[^>]*>[\s\S]{0,50}?</u>)*[\s\S]{0,100}?</div>'
       ⍝ Pattern 2: Gmail <table> — no alisia_header class; <td> has Alisia bg AND Lucida in its own style
-      pats,←⊂'<table\b(?![^>]*alisia_header)[^>]*>[\s\S]{0,100}?<td\b(?=[^>]*(?:',bgAlt,'))(?=[^>]*[Ll]ucida)[^>]*>([^<]+:)[\s\S]{0,100}?</table>'
+      pats,←⊂'<table\b(?![^>]*alisia_header)[^>]*>[\s\S]{0,100}?<td\b(?=[^>]*(?:',bgAlt,'))(?=[^>]*AlisiaFixed)[^>]*>([^<]+:)[\s\S]{0,100}?</table>'
       ⍝ Pattern 3: Outlook MsoNormalTable — Alisia bg in <td>, Lucida in inner <span>
-      pats,←⊂'<table\b(?=[^>]*MsoNormalTable)[^>]*>[\s\S]{0,300}?<td\b(?=[^>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,200}?<span\b[^>]*[Ll]ucida[^>]*>([^<]+:)[\s\S]{0,200}?</table>'
+      pats,←⊂'<table\b(?=[^>]*MsoNormalTable)[^>]*>[\s\S]{0,300}?<td\b(?=[^>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,200}?<span\b[^>]*AlisiaFixed[^>]*>([^<]+:)[\s\S]{0,200}?</table>'
       :For pat :In pats
-          pt←(pat ⎕R {
-            txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt
-            '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'
-          }⍠('Mode' 'D')(IC' 1))pt
+          pt←(pat(⎕R⍠('Mode' 'D')('IC' 1)){txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt ⋄ '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'})pt
       :EndFor
     ∇
 
@@ -372,7 +369,7 @@
           cv,←⊆⍙'stats_labels_admin'               ⍝ Append admin-only rows
           n,←≢blacklist
           n,←⊂¯3↓RMB∊(⍕¨⌊0.5+((2000⌶)1 14 0 16)÷2*20),¨⊂' / '
-          n,←⊂1⊃⎕nparts #.Home
+          n,←⊂1⊃⎕NPARTS #.Home
           n,←⊂di.Name
           n,←⊂' '~⍨,'S<,.>CI15'⎕FMT(di.TotalSize÷2*30)
           n,←⊂' '~⍨' '~⍨,'S<,.>CI15'⎕FMT di.AvailableFreeSpace÷2*30
@@ -448,13 +445,13 @@
       :EndFor
       ⍝ Version section: header + Konducta + all handler repos
       vhdr←⍙'stats_versions_header'
-      vn←,⊂'Konducta' #.Config.version
+      vn←,⊂'Konducta'#.Config.version
       :If 2=#.Config.⎕NC'handlerRepos'
           :For repo :In #.Config.handlerRepos
               :Trap 0
-                   vn,←⊂repo.name ((repo.namespace⍎{2=⍵.⎕NC'class':⍵.class ⋄ ((⍎⍵.namespace).⎕NL-9){(⍺⍳⍥⎕C ⍵)⊃⍺}⊂⍵.name}repo).version)
-               :else 
-               'ERR' 'SYS'Log'Get handler version info: ',⎕JSON ⎕DMX
+                  vn,←⊂repo.name((repo.namespace⍎{2=⍵.⎕NC'class':⍵.class ⋄ ((⍎⍵.namespace).⎕NL-9){(⍺⍳⍥⎕C ⍵)⊃⍺}⊂⍵.name}repo).version)
+              :Else
+                  'ERR' 'SYS'Log'Get handler version info: ',⎕JSON ⎕DMX
               :EndTrap
           :EndFor
       :EndIf
@@ -480,12 +477,12 @@
       prefix←'[',cfg.list_name,'] '
       ⍝ undocumented: admin can append >other@example.com to subject to redirect reply
       replyTo←E.sender
-        :If IsAdmin E.sender
-            :If (1<≢t)∧'>'=⊃⊃⌽t←' '(≠⊆⊢)E.subject
-                replyTo←1↓⊃⌽t
-                E.subject←('\s*>[^\s]+$'⎕R'')E.subject
-            :EndIf
-        :EndIf
+      :If IsAdmin E.sender
+          :If (1<≢t)∧'>'=⊃⊃⌽t←' '(≠⊆⊢)E.subject
+              replyTo←1↓⊃⌽t
+              E.subject←('\s*>[^\s]+$'⎕R'')E.subject
+          :EndIf
+      :EndIf
       ⍝ Rate-limiting: reject request if sender sends too many commands in a short time
       :If ~CheckRateLimit E.sender
           'WARN' 'SEC'Log'Rate limit exceeded'(⊆E.sender)
@@ -755,11 +752,11 @@
                                       pt←FixBrokenEntities pt
                                           ⍝ Phase 1: normalize Outlook-converted headers; Phase 2: depth-based restyling.
                                       pt←NormalizeOutlookHeaders pt
-                                      :If (∨/'alisia_header'⍷pt)∨(0<≢'<(?:div|table)\b[^>]*[Ll]ucida'⎕S 0⊢⎕C pt)
+                                      :If (∨/'alisia_header'⍷pt)∨(0<≢'<(?:div|table)\b[^>]*AlisiaFixed'⎕S 0⊢⎕C pt)
                                           'DBG' 'SYS'Log'[GETMSGS fade] alisia_header/legacy Lucida styles found - adjusting styles'
                                           st←GetStyles
-                                          pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
-                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
                                       :EndIf
                                           ⍝ Insert ht/hb into HTML
                                       :If ∨/'<body'⍷⎕C pt
@@ -1012,8 +1009,8 @@
     ∇
 
     ∇ Mid SendHelp replyTo;purl
-          plain←⍙'help_plain'
-          html←⍙'help_html'
+      plain←⍙'help_plain'
+      html←⍙'help_html'
       :If IsAdmin E.sender
           plain,←⍙'help_admin_plain'
           html,←⍙'help_admin_html'
@@ -1201,7 +1198,7 @@
       rx←('['⎕R'\['⍠'Regex' 0)rx
       :While ∆≢ti←(rx ⎕R''⍠'IC' 1)∆←ti
       :EndWhile   ⍝ keep removing prefixes until there are no more
-
+     
       Subject←(⍙'mailPrefix_tit'(cfg.name_short)(⍕c)),' ',ti
       :If (⎕UCS 65533)∊Subject
           'WARN' 'SYS'Log'[subject dbg] U+FFFD in Subject vor email.Subject←!'
@@ -1218,7 +1215,7 @@
      
       hd←ExtractMimeHeaders email
       ⍝msg.BodyIsRawMessage←1
-      
+     
       ⍝ RFC 2369 / RFC 2919 List-* Headers
       hd⍪←'List-Id'(cfg.list_name,' <',⎕C cfg.name_short,'.',(cfg.smtp_from↓⍨cfg.smtp_from⍳'@'),'>')
       hd⍪←'List-Unsubscribe'('<mailto:',cfg.smtp_from,'?subject=UNSUBSCRIBE>')
@@ -1237,7 +1234,7 @@
               email.Headers.Add h
           :EndIf
       :EndFor
-      email.Headers.Add 'Alisia-In'E.Filename
+      email.Headers.Add'Alisia-In'E.Filename
      
       ⍝ Note on line-endings: msg is read from file, so it only has LF.
       ⍝ We need to expand this to CRLF before calling SendMai!l
@@ -1317,25 +1314,25 @@
               :If (⎕UCS 65533)∊pt
                   'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach FixBrokenEntities!'
               :EndIf
-
+     
     ⍝ Phase 1: normalize Outlook-converted alisia headers back to canonical table form.
               pt←NormalizeOutlookHeaders pt
               :If (⎕UCS 65533)∊pt
                   'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach NormalizeOutlookHeaders!'
               :EndIf
     ⍝ Phase 2: fade/restyle all alisia header/footer elements with depth-appropriate styles.
-              :If (∨/'alisia_header'⍷pt)∨(0<≢'<(?:div|table)\b[^>]*[Ll]ucida'⎕S 0⊢⎕C pt)
+              :If (∨/'alisia_header'⍷pt)∨(0<≢'<(?:div|table)\b[^>]*AlisiaFixed'⎕S 0⊢⎕C pt)
                   'DBG' 'SYS'Log'[fade] alisia_header/legacy Lucida styles gefunden - Styles anpassen'
                   'DBG' 'SYS'Log'[depth] <blockquote> in HTML: ',(⍕+/'<blockquote'⍷⎕C pt),' open, ',(⍕+/'</blockquote'⍷⎕C pt),' close'
                   {bef←⍵↑⎕C pt ⋄ d←1⌈(+/'<blockquote'⍷bef)-(+/'</blockquote'⍷bef) ⋄ 'DBG' 'SYS'Log'[depth] alisia element bei offset ',(⍕⍵),' → depth=',⍕d}¨('<(?:table|div)\b[^>]*alisia_(?:header|footer)[^>]*>'⎕S{⊃⍵.Offsets}⍠'Mode' 'D')pt
                   st←GetStyles
                   ⍝ Patterns: (1) <div class="alisia_header">  (2) <table class="alisia_header"><tr><td>
                   ⍝           (3) legacy linear-gradient div   (4)+(5) legacy border-bottom/border-left divs
-                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*border-left[^;]*3px\s+solid)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*border-left[^;]*3px\s+solid)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
                   ⍝ Patterns: (1) <div class="alisia_footer">  (2) <table class="alisia_footer"><tr><td>
                   ⍝           (3) legacy linear-gradient div   (4) legacy border-top div
                   ⍝           (5) Gmail-quoted <table>: class stripped, border-top:2px+Lucida in <td>
-                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*[Ll]ucida[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*[Ll]ucida)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>' '<table\b(?![^>]*alisia_(?:footer|header))[^>]*>[\s\S]{0,150}?<td\b(?=[^>]*[Ll]ucida)(?=[^>]*border-top(?:-width)?:[^;]*2px)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>' '<table\b(?![^>]*alisia_(?:footer|header))[^>]*>[\s\S]{0,150}?<td\b(?=[^>]*AlisiaFixed)(?=[^>]*border-top(?:-width)?:[^;]*2px)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
               :Else
                   'DBG' 'SYS'Log'[fade] no alisia_header/legacy Lucida styles in HTML'
               :EndIf
@@ -1590,15 +1587,14 @@
       ⍝ dateStr: pre-captured date string (email.Date.DateTime must be read before Headers.Clear)
       (d h m)←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
       s←⊃GetStyles  ⍝ Level-0 style (fresh/outermost)
-      ht←'<!--alisia_header--><table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_top_html'dateStr orig_from))),'</td></tr></table>'
-      bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html' d h m version))  ⍝ HTML footer content before wrapping
-      ⎕←bi
-      bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text' d h m version))  ⍝ plain text footer
+      ht←'<!--alisia_header--><table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 8px 0;"><tr><td style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_top_html'dateStr orig_from))),'</td></tr></table>'
+      bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html'd h m version))  ⍝ HTML footer content before wrapping
+      bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text'd h m version))  ⍝ plain text footer
       :If 0<≢purl←PrivacyURL
           bi,←⍙'privacy_link_html'purl  ⍝ append inside footer table cell
           bt,←CRLF,⍙'privacy_link_text'purl
       :EndIf
-      hb←'<!--alisia_footer--><table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',s.footer,'">',bi,'</td></tr></table>'
+      hb←'<!--alisia_footer--><table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:8px 0 0 0;"><tr><td style="',s.footer,'">',bi,'</td></tr></table>'
       r←ht hb({1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_top_text'dateStr orig_from)))bt
     ∇
 
@@ -1643,17 +1639,17 @@
     ∇
 
 ⍝─── Jarvis Endpoints
-∇ R←req confirm arg;secret;ju;auth;r;msg
-:access public
+    ∇ R←req confirm arg;secret;ju;auth;r;msg
+      :Access public
       r←arg
       R←⍙'confirm_failed'
       secret←1⊃160⌶'ALISIA_PROD_MAILPSWD'
       auth←ju←'N/A'
-:trap 6
-      ju←'confirm?h=',r.h,'&c=',r.c,'&e=',r.e,'&s=',r.s
-      auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
-:endtrap
-      :if auth≡1↓¯1↓r.a   ⍝ drop " from auth string
+      :Trap 6
+          ju←'confirm?h=',r.h,'&c=',r.c,'&e=',r.e,'&s=',r.s
+          auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
+      :EndTrap
+      :If auth≡1↓¯1↓r.a   ⍝ drop " from auth string
           msg←⎕NS''
           msg.sender←1↓¯1↓r.e    ⍝ strip quotes: "email" → email
           msg.subject←1↓¯1↓r.s   ⍝ strip quotes: "CONFIRM token" → CONFIRM token
@@ -1661,17 +1657,17 @@
           r←1 AddSubscriber msg   ⍝ opts=1: confirmation mode
           'INFO' 'ALISIA'Log'Confirmation webhook: ',(1↓¯1↓r.e),' rc=',⍕R
           R←⍙'confirm_ok'
-      :else
-          'WARN' 'ALISIA'Log'Confirmation failed for email: ',r.e,' with details ',(⎕json r),', ju="',ju,'", auth="',auth,'"'
-      :endif
+      :Else
+          'WARN' 'ALISIA'Log'Confirmation failed for email: ',r.e,' with details ',(⎕JSON r),', ju="',ju,'", auth="',auth,'"'
+      :EndIf
       req.SetContentType'text/html; charset=utf-8'
       ⎕←R
-∇
+    ∇
 
-∇ R←req unsubscribe arg
-:access public
-⎕TRAP←0'S' ⋄ (⎕lc[1]+1)⎕stop 1⊃⎕xsi
-∇
+    ∇ R←req unsubscribe arg
+      :Access public
+      ⎕TRAP←0 'S' ⋄ (⎕LC[1]+1)⎕STOP 1⊃⎕XSI
+    ∇
 
 
 :endclass
