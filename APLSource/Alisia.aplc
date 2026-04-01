@@ -53,7 +53,7 @@
       ⍝ Pattern 3: Outlook MsoNormalTable — Alisia bg in <td>, Lucida in inner <span>
       pats,←⊂'<table\b(?=[^>]*MsoNormalTable)[^>]*>[\s\S]{0,300}?<td\b(?=[^>]*(?:',bgAlt,'))[^>]*>[\s\S]{0,200}?<span\b[^>]*AlisiaFixed[^>]*>([^<]+:)[\s\S]{0,200}?</table>'
       :For pat :In pats
-          pt←(pat(⎕R⍠('Mode' 'D')('IC' 1)){txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt ⋄ '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'})pt
+          pt←(pat ⎕R{txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt ⋄ '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'}⍠('Mode' 'D')('IC' 1))pt
       :EndFor
     ∇
 
