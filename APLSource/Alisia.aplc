@@ -745,8 +745,13 @@
                               :For part :In email.BodyParts
                                   :If part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
                                   :AndIf ~part.IsAttachment
-                                      pt←part.Text
-                                      :If (⎕UCS 65533)∊pt  ⍝ U+FFFD: declared charset does not match content (e.g. Windows-1252 declared as UTF-8)
+                                      :Trap 0
+                                          pt←part.GetText⊂'utf-8'
+                                      :Else
+                                          pt←part.Text
+                                      :EndTrap
+                                      pt0←pt
+                                      :If (⎕UCS 65533)∊pt  ⍝ U+FFFD in decoded text: try Windows-1252 fallback only then
                                           :Trap 0 ⋄ pt←part.GetText'windows-1252' ⋄ :EndTrap
                                       :EndIf
                                       pt←FixBrokenEntities pt
@@ -765,6 +770,11 @@
                                       :Else
                                           pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
                                       :EndIf
+                                      :If (~(⎕UCS 65533)∊pt0)∧((⎕UCS 65533)∊pt)
+                                          'WARN' 'SYS'Log'[GETMSGS html] U+FFFD introduced during HTML rewrite - using original decoded HTML; msg #',(⍕z),'; file=',file,'; Message-ID=',({6::'' ⋄ email.MessageId}⍬)
+                                          pt←pt0
+                                      :EndIf
+                                      part.ContentType.Charset←'utf-8'
                                       part.Text←pt
                                   :EndIf
                               :EndFor
@@ -1294,6 +1304,7 @@
           :ElseIf part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
               htmlPart←part
               pt←part.Text
+              pt0←pt
               :If (⎕UCS 65533)∊pt
                   'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach part.Text - versuche GetText utf-8'
                   :Trap 0
@@ -1347,6 +1358,11 @@
         ⍝ No body tag → wrap everything
                   pt←'<body>',CRLF,ht,CRLF,pt,CRLF,hb,CRLF,'</body>'
               :EndIf
+              :If (~(⎕UCS 65533)∊pt0)∧((⎕UCS 65533)∊pt)
+                  'WARN' 'SYS'Log'[HTML dbg] U+FFFD introduced during HTML rewrite - verwende originales HTML; msg #',(⍕c),'; archive=',p,'; in=',E.Filename,'; Message-ID=',({6::'' ⋄ email.MessageId}⍬)
+                  pt←pt0
+              :EndIf
+              htmlPart.ContentType.Charset←'utf-8'
      
               htmlPart.Text←pt
           :ElseIf part.ContentId≢⎕NULL
