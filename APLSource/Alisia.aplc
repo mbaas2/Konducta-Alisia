@@ -29,15 +29,24 @@
       r←'(?:#',h,'|rgb\(\s*',(¯4↓∊(⍕¨vals),¨⊂'\s*,\s*'),'\))'
     ∇
 
-    ∇ pt←NormalizeOutlookHeaders pt;st;bgHexes;bgPats;bgAlt;pat;pats
-      ⍝ Phase 1 resilience: collapse email-client-reformatted alisia_header elements back to
-      ⍝ canonical <table class="alisia_header"> form, before depth-based re-styling.
+    ∇ pt←NormalizeOutlookHeaders pt;st;bgHexes;bgPats;bgAlt;pat;pats;hdrPat4;ftrPat5
+      ⍝ Phase 1 resilience: collapse email-client-reformatted alisia_header / alisia_footer
+      ⍝ elements back to canonical <table class="alisia_header"|"alisia_footer"> form, before
+      ⍝ depth-based re-styling in Phase 2.
       ⍝
-      ⍝ Three client patterns handled:
+      ⍝ Client patterns handled:
       ⍝ 1. Outlook <div>: outer <div> (no alisia_header) + bg color + AlisiaFixed <span> + header text
       ⍝ 2. Gmail <table>: <td> has Alisia bg color AND AlisiaFixed directly in td style, text ends ':'
       ⍝ 3. Outlook MsoNormalTable: <table class="MsoNormalTable">, Alisia bg in <td>,
       ⍝    AlisiaFixed in inner <span>, text ends ':'
+      ⍝ 4. Outlook <table border="0"> HEADER without AlisiaFixed — the font-family stack
+      ⍝    AlisiaFixed,"Lucida Console" gets stripped to just "Lucida Console" when the
+      ⍝    quote is re-quoted through Outlook (so Pattern 2/3 no longer match). Identified
+      ⍝    by Alisia bg color in <td> + header border signature (border-width starts 1pt/0.75pt).
+      ⍝    Inner body is run through CleanMsoInner so Outlook's inline font-family/color
+      ⍝    declarations don't override Phase 2's depth-based <td> styling.
+      ⍝ 5. Outlook <table border="0"> FOOTER without AlisiaFixed — same as (4) but with a
+      ⍝    footer border signature (border-width starts 1.5pt/2pt, ie. thick top border).
       st←GetStyles
       bgHexes←('[\s\S]*(?i)background\s*:\s*#([0-9a-fA-F]{6})[\s\S]*'⎕R'\1'⍠'Mode' 'D')¨st.header
       bgHexes←bgHexes/⍨6=≢¨bgHexes                ⍝ keep only valid 6-char hex values
@@ -55,6 +64,77 @@
       :For pat :In pats
           pt←(pat ⎕R{txt←(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt ⋄ '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'}⍠('Mode' 'D')('IC' 1))pt
       :EndFor
+      ⍝ Pattern 4: Outlook-mangled HEADER — bare <table border="0"> without AlisiaFixed/class.
+      ⍝ Header discriminator: border-width starts 1pt or 0.75pt (thin top border).
+      hdrPat4←'<table\b(?![^>]*alisia_)(?=[^>]*border="0")[^>]*>[\s\S]{0,300}?<td\b(?=[^>]*border-width:\s*(?:0\.75|1)pt\b)(?=[^>]*background:[^;"]*(?:',bgAlt,'))[^>]*>([\s\S]*?)</td>[\s\S]{0,100}?</table>'
+      pt←(hdrPat4 ⎕R{txt←CleanMsoInner(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt ⋄ '<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'}⍠('Mode' 'D')('IC' 1))pt
+      ⍝ Pattern 5: Outlook-mangled FOOTER — bare <table border="0"> without AlisiaFixed/class.
+      ⍝ Footer discriminator: border-width starts 1.5pt or 2pt (thick top border).
+      ftrPat5←'<table\b(?![^>]*alisia_)(?=[^>]*border="0")[^>]*>[\s\S]{0,300}?<td\b(?=[^>]*border-width:\s*(?:1\.5|2)pt\b)(?=[^>]*background:[^;"]*(?:',bgAlt,'))[^>]*>([\s\S]*?)</td>[\s\S]{0,100}?</table>'
+      pt←(ftrPat5 ⎕R{txt←CleanMsoInner(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt ⋄ '<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'}⍠('Mode' 'D')('IC' 1))pt
+      ⍝ Pattern 6: Gmail-stripped FOOTER — <table> WITHOUT border="0" attribute (Gmail drops
+      ⍝ it when forwarding). Identified by TD signature: Alisia bg + AlisiaFixed font family +
+      ⍝ thick top border (2px). Without this pattern, Gmail-forwarded outbound mails keep an
+      ⍝ un-canonicalized footer that escapes DedupEmbeddedFooters.
+      ftrPat6←'<table\b(?![^>]*alisia_)[^>]*>[\s\S]{0,150}?<td\b(?=[^>]*background:[^;"]*(?:',bgAlt,'))(?=[^>]*AlisiaFixed)(?=[^>]*border-top(?:-width)?:[^;]*2px)[^>]*>([\s\S]*?)</td>[\s\S]{0,100}?</table>'
+      pt←(ftrPat6 ⎕R{txt←CleanMsoInner(2⊃⍵.Lengths)↑(2⊃⍵.Offsets)↓pt ⋄ '<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td>',txt,'</td></tr></table>'}⍠('Mode' 'D')('IC' 1))pt
+    ∇
+
+    ∇ pt←DedupEmbeddedFooters pt;rx;n
+      ⍝ Strip alisia_footer blocks embedded in quoted content. By this point Phase 1 has
+      ⍝ normalized all known mangled footer forms to canonical <table class="alisia_footer">,
+      ⍝ so a simple class-based match suffices.
+      ⍝
+      ⍝ The fresh MakeHeaderFooter footer is added LATER (at <body> wrap time), so it is
+      ⍝ never in pt when this runs — dedup can't accidentally delete it.
+      ⍝
+      ⍝ Motivation: in a long reply chain, every prior send's footer survives in the quote
+      ⍝ stack, producing 8+ near-identical "verarbeitet von Alisia..." blocks with the same
+      ⍝ privacy link. This is visual noise AND a strong Gmail spam signal (repetitive near-
+      ⍝ duplicate content with links). After dedup, the outbound contains exactly one footer,
+      ⍝ at the bottom, from the current send.
+      rx←'(?:<!--alisia_footer-->\s*)?<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,3000}?</table>'
+      n←≢(rx ⎕S 0⍠('IC' 1)('Mode' 'D'))pt
+      :If 0<n
+          'DBG' 'SYS'Log'[dedup] removed ',(⍕n),' embedded alisia_footer block(s) from quote chain'
+      :EndIf
+      pt←(rx ⎕R''⍠('IC' 1)('Mode' 'D'))pt
+    ∇
+
+    ∇ r←CleanMsoInner h
+      ⍝ Clean Outlook/Word MsoNormal inner HTML down to text + <br> + plain <a href=…>:
+      ⍝ drop <p>/<span>/<b>/<i>/<u>/<div>/<font>/<o:p>/<strong>/<em> wrappers, drop all
+      ⍝ inline style="…" attributes (which carry font-family/color overrides that would
+      ⍝ otherwise beat Alisia's depth-appropriate <td> style applied in Phase 2), unwrap
+      ⍝ Proofpoint urldefense.com wrappers, and normalize stray <br> runs.
+      r←h
+      r←('</p\s*>'⎕R'<br>'⍠('Mode' 'D')('IC' 1))r
+      r←('<p\b[^>]*>'⎕R''⍠('Mode' 'D')('IC' 1))r
+      r←('</?(?:b|i|u|span|div|font|o:p|strong|em)\b[^>]*>'⎕R''⍠('Mode' 'D')('IC' 1))r
+      r←('https?://urldefense\.com/v\d+/__([^"]*?)__;[^"\s]*'⎕R'\1'⍠('Mode' 'D')('IC' 1))r
+      r←('\s+style="[^"]*"'⎕R''⍠('Mode' 'D')('IC' 1))r
+      r←('(?:\s*<br\s*/?\s*>\s*){2,}'⎕R'<br>'⍠('Mode' 'D')('IC' 1))r
+      r←('^\s*(?:<br\s*/?\s*>\s*)+'⎕R''⍠('Mode' 'D')('IC' 1))r
+      r←('(?:\s*<br\s*/?\s*>)+\s*$'⎕R''⍠('Mode' 'D')('IC' 1))r
+    ∇
+
+    ∇ d←pt DepthAtOffset off;before;bq;fo;fm
+      ⍝ Effective quoting depth in HTML just before byte offset 'off'.
+      ⍝ Counts three cumulative quote-nesting signals to fix Outlook forward blocks
+      ⍝ that render as styled <div> rather than <blockquote> and therefore were
+      ⍝ invisible to Phase 2 fading (both headers ended up at the same level).
+      ⍝   bq  — currently-open <blockquote> elements (classic HTML quoting)
+      ⍝   fo  — Outlook "formal" forward blocks: <div style="border-style:solid none none…">
+      ⍝         containing "Von:"/"From:" and "Betreff:"/"Subject:" labels nearby
+      ⍝   fm  — mobile/plain forward markers: "-------- Ursprüngliche Nachricht --------"
+      ⍝         or "-------- Original Message --------" / "-------- Forwarded Message --------"
+      ⍝ fo and fm are counted cumulatively (every occurrence before 'off'), because a
+      ⍝ forward header is a marker, not a wrapping element that closes.
+      before←off↑pt
+      bq←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before)
+      fo←≢('<div\b[^>]*border-style:\s*solid\s+none\s+none[^>]*>[\s\S]{0,1500}?(?:Von|From):[\s\S]{0,500}?(?:Betreff|Subject):'⎕S 0⍠('IC' 1)('Mode' 'D'))before
+      fm←≢('-{4,}\s*(?:Urspr(?:u|ü)ngliche Nachricht|Original Message|Forwarded Message)\s*-{4,}'⎕S 0⍠('IC' 1)('Mode' 'D'))before
+      d←bq+fo+fm
     ∇
 
     ∇ r←GetCommand subj        ⍝ remove possible redirection from subject line
@@ -755,13 +835,14 @@
                                           :Trap 0 ⋄ pt←part.GetText'windows-1252' ⋄ :EndTrap
                                       :EndIf
                                       pt←FixBrokenEntities pt
-                                          ⍝ Phase 1: normalize Outlook-converted headers; Phase 2: depth-based restyling.
+                                          ⍝ Phase 1: normalize Outlook-converted headers; Phase 1.5: dedup footers; Phase 2: depth-based restyling.
                                       pt←NormalizeOutlookHeaders pt
+                                      pt←DedupEmbeddedFooters pt
                                       :If (∨/'alisia_header'⍷pt)∨(0<≢'<(?:div|table)\b[^>]*AlisiaFixed'⎕S 0⊢⎕C pt)
                                           'DBG' 'SYS'Log'[GETMSGS fade] alisia_header/legacy Lucida styles found - adjusting styles'
                                           st←GetStyles
-                                          pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
-                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>')⎕R{depth←pt DepthAtOffset⊃⍵.Offsets ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                                          pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>')⎕R{depth←pt DepthAtOffset⊃⍵.Offsets ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
                                       :EndIf
                                           ⍝ Insert ht/hb into HTML
                                       :If ∨/'<body'⍷⎕C pt
@@ -1331,6 +1412,12 @@
               :If (⎕UCS 65533)∊pt
                   'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach NormalizeOutlookHeaders!'
               :EndIf
+    ⍝ Phase 1.5: strip embedded alisia_footer blocks that accumulated through the quote chain
+    ⍝  (visual noise + Gmail spam signal); the fresh footer is added later at body-wrap time.
+              pt←DedupEmbeddedFooters pt
+              :If (⎕UCS 65533)∊pt
+                  'WARN' 'SYS'Log'[HTML dbg] U+FFFD nach DedupEmbeddedFooters!'
+              :EndIf
     ⍝ Phase 2: fade/restyle all alisia header/footer elements with depth-appropriate styles.
               :If (∨/'alisia_header'⍷pt)∨(0<≢'<(?:div|table)\b[^>]*AlisiaFixed'⎕S 0⊢⎕C pt)
                   'DBG' 'SYS'Log'[fade] alisia_header/legacy Lucida styles gefunden - Styles anpassen'
@@ -1339,11 +1426,11 @@
                   st←GetStyles
                   ⍝ Patterns: (1) <div class="alisia_header">  (2) <table class="alisia_header"><tr><td>
                   ⍝           (3) legacy linear-gradient div   (4)+(5) legacy border-bottom/border-left divs
-                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*border-left[^;]*3px\s+solid)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_header[^>]*>' '<table\b[^>]*alisia_header[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_header)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-bottom:2em[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-bottom[^>]*2px|border-bottom-width:2px))[^>]*>' '<div\b(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*border-left[^;]*3px\s+solid)[^>]*>')⎕R{depth←1+pt DepthAtOffset⊃⍵.Offsets ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).header,'">' ⋄ '<div class="alisia_header" style="',((1+4⌊depth)⊃st).header,'">'}⍠'Mode' 'D')pt
                   ⍝ Patterns: (1) <div class="alisia_footer">  (2) <table class="alisia_footer"><tr><td>
                   ⍝           (3) legacy linear-gradient div   (4) legacy border-top div
                   ⍝           (5) Gmail-quoted <table>: class stripped, border-top:2px+Lucida in <td>
-                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>' '<table\b(?![^>]*alisia_(?:footer|header))[^>]*>[\s\S]{0,150}?<td\b(?=[^>]*AlisiaFixed)(?=[^>]*border-top(?:-width)?:[^;]*2px)[^>]*>')⎕R{before←(⊃⍵.Offsets)↑pt ⋄ depth←1+(+/'<blockquote'⍷⎕C before)-(+/'</blockquote'⍷⎕C before) ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
+                  pt←(('<div\b[^>]*alisia_footer[^>]*>' '<table\b[^>]*alisia_footer[^>]*>[\s\S]{0,100}?<td\b[^>]*>' '<div\b(?![^>]*alisia_footer)[^>]*linear-gradient[^>]*AlisiaFixed[^>]*margin-top:2em[^>]*>' '<div\b(?![^>]*alisia_footer)(?![^>]*alisia_header)(?=[^>]*background)(?=[^>]*AlisiaFixed)(?=[^>]*(border-top:[^;]*2px|border-top-width:2px))[^>]*>' '<table\b(?![^>]*alisia_(?:footer|header))[^>]*>[\s\S]{0,150}?<td\b(?=[^>]*AlisiaFixed)(?=[^>]*border-top(?:-width)?:[^;]*2px)[^>]*>')⎕R{depth←1+pt DepthAtOffset⊃⍵.Offsets ⋄ ('<table'≡6↑⍵.Match):'<table class="alisia_footer" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0;"><tr><td style="',((1+4⌊depth)⊃st).footer,'">' ⋄ '<div class="alisia_footer" style="',((1+4⌊depth)⊃st).footer,'">'}⍠'Mode' 'D')pt
               :Else
                   'DBG' 'SYS'Log'[fade] no alisia_header/legacy Lucida styles in HTML'
               :EndIf
