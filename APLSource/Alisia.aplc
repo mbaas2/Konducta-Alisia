@@ -440,7 +440,7 @@
       n,←⊂¯3↓RMB∊(⍕¨(20 ⎕DT⊂⎕TS)DateDiff #.launchTS),¨⊂' / '
       n,←⊂'Dyalog APL ',(1⊃'.'⎕WG'APLVersion'),' ',2⊃'.'⎕WG'APLVersion'
       commit_html←''                                       ⍝ HTML-only link for commit row (empty = no override)
-      :If isAdmin
+      :If isAdmin∨IsDevUser
           ⎕USING∪←⊂'System.IO,System.IO.FileSystem.DriveInfo'
           root←Path.GetPathRoot⊂#.Home
           di←⎕NEW DriveInfo(⊂root)
