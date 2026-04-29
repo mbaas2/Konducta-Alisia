@@ -1566,23 +1566,37 @@
     ∇
 
 
-    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;msg;mmsg;smtp_cfg;smtp;opts
+    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes;Utf8Bytes;HeaderText
       :Access public
-      msg←⎕NEW BodyBuilder
+      Utf8Bytes←{bytes←'UTF-8'⎕UCS ⍵ ⋄ bytes←{⍵-256×⍵>127}bytes ⋄ bytes←Array.CreateInstance Byte,⍴bytes ⋄ bytes(Byte Cast){⍵-256×⍵>127}'UTF-8'⎕UCS ⍵ ⋄ bytes}
+      HeaderText←{128∧.>⎕UCS ⍵:⍵ ⋄ '=?utf-8?B?',(SMTP.Message.base64enc ⍵),'?='}
       ⍝ ⍵=To Title Body [Html[bcc]]
-      :If 3<≢ToTitBody_Html_bcc
-          msg.HtmlBody←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
-      :EndIf
       :If 0=⎕NC'AddHeaders'
           AddHeaders←⍬
       :EndIf
       AddHeaders←,AddHeaders
-      msg.TextBody←{2=≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}3⊃ToTitBody_Html_bcc
+      plain←{2=≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}3⊃ToTitBody_Html_bcc
      
       mmsg←⎕NEW MimeMessage
       mmsg.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
-      mmsg.Body←msg.ToMessageBody
-      mmsg.Subject←∊2⊃ToTitBody_Html_bcc
+      part←⎕NEW MimeKit.TextPart(⊂'plain')
+      part.ContentType.Charset←'utf-8'
+      part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
+      part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(Utf8Bytes plain))
+      :If 3<≢ToTitBody_Html_bcc
+          html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
+          alt←⎕NEW MimeKit.Multipart(⊂'alternative')
+          alt.Add part
+          part←⎕NEW MimeKit.TextPart(⊂'html')
+          part.ContentType.Charset←'utf-8'
+          part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
+          part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(Utf8Bytes html))
+          alt.Add part
+          mmsg.Body←alt
+      :Else
+          mmsg.Body←part
+      :EndIf
+      mmsg.Headers.Add 'Subject'(HeaderText ∊2⊃ToTitBody_Html_bcc)
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc
