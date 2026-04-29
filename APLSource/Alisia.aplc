@@ -266,11 +266,13 @@
                   ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
                   auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
                   ju←#.JARVIS_URL,ju,'&a="',auth,'"'
-                  body←body,⍙'subscribe1_body'token ju
-                  html←html,⍙'subscribe1_body_html'token ju
+                  purl←PrivacyURL
                   :If 0<≢purl←PrivacyURL
-                      html,←⊂⍙'privacy_link_html'purl
-                      body,←⊂⍙'privacy_link_text'purl
+                      body←body,⍙'subscribe1_body'token ju purl
+                      html←html,⍙'subscribe1_body_html'token ju purl
+                  :Else
+                      body←body,⍙'subscribe1_body'token ju
+                      html←html,⍙'subscribe1_body_html'token ju
                   :EndIf
                   body←∊body,¨CR
                   html←∊html,¨CR
