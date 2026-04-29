@@ -6,5 +6,8 @@
  'mit dem Betreff "⍙cmd_confirm⍙ %1" innerhalb der nächsten 24 Stunden! Alternativ klicken Sie auf diesen Link oder kopieren Sie in den Browser: %2'
  'Bitte beachten Sie: Die Bestätigung muss von der E-Mail-Adresse gesendet werden, an die diese Bestätigung gesendet wurde!'
  ''
+ 'DSGVO: Ihre Privatsphäre ist uns wichtig. Ihre E-Mail-Adresse wird ausschließlich für die Verwaltung dieses Abonnements verwendet und nicht an Dritte weitergegeben. Ihr Name wird in emails an die Liste erwähnt. Sie können Ihr Abonnement jederzeit kündigen, indem Sie auf den Abmeldelink in unseren E-Mails klicken oder uns direkt kontaktieren.'
+ 'Unsere vollständige Datenschutzerklärung  finden Sie hier: %3'
+ ''
  'Wenn Sie nicht interessiert sind (oder dies für einen Fehler halten), ignorieren Sie diese Nachricht einfach - es wird keine weitere Kontaktaufnahme erfolgen.'
 )

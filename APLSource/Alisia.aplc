@@ -1580,7 +1580,7 @@
       mmsg←⎕NEW MimeMessage
       mmsg.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
       mmsg.Body←msg.ToMessageBody
-      mmsg.Subject←2⊃ToTitBody_Html_bcc
+      mmsg.Subject←∊2⊃ToTitBody_Html_bcc
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc

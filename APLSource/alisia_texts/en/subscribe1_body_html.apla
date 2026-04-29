@@ -6,5 +6,8 @@
  'with the subject "⍙cmd_confirm⍙ %1" within the next 24 hours! Alternatively, click <a href=''%2''>this link</a>.</b><br />'
  'Please notice: the confirmation must be sent from email address this confirmation was sent to.<br />'
  '<br />'
+ '<b>GDPR</b>: Your privacy is important to us. Your email address will only be used for managing this subscription and will not be shared with third parties. Your name will be mentioned in emails to the list. You can unsubscribe at any time by clicking the unsubscribe link in our emails or contacting us directly.'
+ 'Our full privacy policy can be found here: %3'
+    '<br />'
  'If you are not interested (or believe this is a mistake), please simply ignore this message - there will be no further contact.'
 )

@@ -6,5 +6,8 @@
  'indem Sie auf diese Nachricht antworten (oder eine neue Nachricht senden) mit dem Betreff "⍙cmd_confirm⍙ %1". Alternativ klicken Sie auf <a href=''%2''>diesen Link</a>.</b><br />'
  'Bitte beachten Sie: Die Best&auml;tigung muss von der E-Mail-Adresse gesendet werden, an die diese Best&auml;tigung gesendet wurde.<br />'
  '<br />'
+ '<b>DSGVO</b>: Ihre Privatsphäre ist uns wichtig. Ihre E-Mail-Adresse wird ausschließlich für die Verwaltung dieses Abonnements verwendet und nicht an Dritte weitergegeben. Ihr Name wird in emails an die Liste erwähnt. Sie können Ihr Abonnement jederzeit kündigen, indem Sie auf den Abmeldelink in unseren E-Mails klicken oder uns direkt kontaktieren.'
+ 'Unsere vollständige Datenschutzerklärung  finden Sie hier: %3'
+ '<br />'
  'Wenn Sie nicht interessiert sind (oder dies f&uuml;r einen Fehler halten), ignorieren Sie diese Nachricht einfach - es wird keine weitere Kontaktaufnahme erfolgen.'
 )
