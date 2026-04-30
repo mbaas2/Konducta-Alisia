@@ -1582,7 +1582,7 @@
       part←⎕NEW MimeKit.TextPart(⊂'plain')
       part.ContentType.Charset←'utf-8'
       part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
-      part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(Utf8Bytes plain))
+      part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(⊂Utf8Bytes plain))
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
