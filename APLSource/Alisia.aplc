@@ -258,8 +258,6 @@
                   :EndIf
                   html←body←''
                   :If opts #._hasBitSet 2
-                      body←E.Text(80⍴'_')
-                      html←E.Html'<hr>'
                       tit←⍙'subscribe2_tit'cfg.##.handler_cfg.list_name
                   :EndIf
                   secret←1⊃160⌶'ALISIA_PROD_MAILPSWD'
@@ -909,14 +907,9 @@
       prefix←'[',cfg.list_name,'] '
       mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
       E←⎕JSON ⎕JSON E  ⍝ make sure we don't work on a ref (which would affect the alling fn)
-      txt←E.Text  ⍝ does it contain mailaddresses?
-      txt←((⎕UCS 10)(≠⊆⊢)txt)~¨⎕UCS 13
-      h←¯1+(∊≢¨txt)⍳0
-      mail←∪('(?:<a href="mailto:)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)(?:">\\1</a>)?'⎕S'\1')h↑txt
-      E.Text←∊((('(?:<a href="mailto:)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)(?:">\\1</a>)?'⎕R'')h↑txt),(h+1)↓txt),¨⊂CRLF
-      ⍝ TODO: Html replacement needs improvement since it scans complete text - should stop after last mailaddress!
-      E.Html←('(<a href="mailto:([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)">\2</a>)|([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)'⎕R'')E.Html
-      arg←' '∘(1↓,⊢⍤/⍨1(⊢∨⌽)0,≠)E.subject,∊' ',¨mail
+      ⍝ Admin commands take their arguments from the subject only.
+      ⍝ Forwarded mail headers in the body often contain unrelated addresses.
+      arg←' '∘(1↓,⊢⍤/⍨1(⊢∨⌽)0,≠)E.subject
       t←' '(≠⊆⊢)arg
       ⍝ undocumented: append >other@example.com to subject/body to redirect reply
       replyTo←E.sender
@@ -931,7 +924,9 @@
           'INFO' 'ADM'Log StartOfLog
           :Select ⎕C 1⊃t
           :Case ⎕C ⍙'cmd_subscribe'
+          'INFO' 'ADM'Log'subscribe'
               E.SubscriberOpts←4
+          'INFO' 'ADM'Log'subscribed'
               E AddSubscriber¨1↓t
           :Case ⎕C ⍙'cmd_unsubscribe'
               ⍝ Delete subscriber record(s) for specified addresses (no archive anonymization)
@@ -1566,10 +1561,9 @@
     ∇
 
 
-    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes;Utf8Bytes;HeaderText
+    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes;Utf8Bytes
       :Access public
       Utf8Bytes←{'UTF-8'⎕UCS ⍵}
-      HeaderText←{128∧.>⎕UCS ⍵:⍵ ⋄ '=?utf-8?B?',(SMTP.Message.base64enc ⍵),'?='}
       ⍝ ⍵=To Title Body [Html[bcc]]
       :If 0=⎕NC'AddHeaders'
           AddHeaders←⍬
@@ -1582,7 +1576,8 @@
       part←⎕NEW MimeKit.TextPart(⊂'plain')
       part.ContentType.Charset←'utf-8'
       part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
-      part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(⊂Utf8Bytes plain))
+      ⍝part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(⊂Utf8Bytes plain))
+      part.Text←plain
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
@@ -1590,13 +1585,14 @@
           part←⎕NEW MimeKit.TextPart(⊂'html')
           part.ContentType.Charset←'utf-8'
           part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
-          part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(Utf8Bytes html))
+          ⍝part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(Utf8Bytes html))
+          part.Text←html
           alt.Add part
           mmsg.Body←alt
       :Else
           mmsg.Body←part
       :EndIf
-      mmsg.Headers.Add 'Subject'(HeaderText ∊2⊃ToTitBody_Html_bcc)
+      mmsg.Subject←∊2⊃ToTitBody_Html_bcc
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc
@@ -1604,11 +1600,13 @@
       :EndIf
       :While 1<≢AddHeaders
           :If ⎕NULL≢2⊃AddHeaders
+          :andif 'subject'≢⎕C 1⊃AddHeaders
               mmsg.Headers.Add 2↑AddHeaders
           :EndIf
           AddHeaders←2↓AddHeaders
       :EndWhile
-     
+      mmsg.WriteTo (r←{2⊃(⎕NUNTIE t),0 ⎕NINFO t←(⍵,∊'YYYYMMDD"_"hhmmss".eml"'(1200⌶)¯1 1 ⎕DT⊂⎕TS)(⎕NCREATE⍠'Unique' 1)0}CFG.config.Folder,'archive/')CancellationToken
+      'DBG' 'SMTP'Log'saved message to file ',r
       smtp_cfg←cfg.(smtp_server smtp_port smtp_from smtp_pswd smtp_user smtp_secure)
       smtp←⎕NEW SmtpClient
       smtp.Connect(smtp_cfg[1],smtp_cfg[2],1,CancellationToken)
