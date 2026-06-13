@@ -1,0 +1,7 @@
+('Eine Nachricht an die Readonly-Liste wurde nicht an alle verteilt.'
+ ''
+ 'Von: %1'
+ 'Betreff: %2'
+ ''
+ 'Nachricht:'
+ '%3')

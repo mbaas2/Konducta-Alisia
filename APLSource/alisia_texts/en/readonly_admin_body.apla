@@ -1,0 +1,7 @@
+('A message to the readonly list was not distributed to all subscribers.'
+ ''
+ 'From: %1'
+ 'Subject: %2'
+ ''
+ 'Message:'
+ '%3')

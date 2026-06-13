@@ -1,0 +1,15 @@
+(
+ '<h2>Instructions for this Alisia announcement list</h2>'
+ '<b>NB:</b> The commands listed below must be given in the subject of the message! They are NOT case-sensitive.<br>'
+ '<p>This list distributes messages from administrators to all subscribers. Questions sent to the list address are not distributed to all subscribers. They are forwarded to the list administrators instead.</p>'
+ '<ul><li>Send message with ⍙cmd_subscribe⍙ to the list to subscribe sender''s email. You will be asked for confirmation.</li>'
+ '<li>Send message with ⍙cmd_unsubscribe⍙ to the list to unsubscribe immediately.</li>'
+ '<li>Send message with ⍙cmd_nomail⍙ to temporarily pause delivery without unsubscribing.</li>'
+ '<li>Send message with ⍙cmd_mail⍙ to resume delivery after a pause.</li></ul>'
+ '<h3>Your data</h3>'
+ '<ul><li>Send message with "⍙cmd_getmydata⍙" to the list to receive a copy of the data we have stored for your email address.</li>'
+ '<li>Answer this msg with "⍙cmd_setmydata⍙" and return your edited record (name + alternative_email may be edited).</li>'
+ '<li>Send message with "⍙cmd_deleteme⍙" to permanently delete all your personal data (GDPR Art. 17).</li></ul>'
+ '<h3>More</h3>'
+ '<ul><li>Send message with "⍙cmd_help⍙" to get this help.</li></ul>'
+)

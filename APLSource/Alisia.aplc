@@ -170,7 +170,7 @@
       :EndTrap
     ∇
 
-    ∇ R←{opts}AddSubscriber msg;m;sub;sub∆;dir;file;z;log;rc;token;body;tit;i;res;ns;adr;html;E;ju;blacklist;hdr;mail;body_html;window;purl
+    ∇ R←{opts}AddSubscriber msg;m;sub;sub∆;dir;file;z;log;rc;token;body;tit;i;res;ns;adr;html;E;ju;blacklist;hdr;mail;body_html;window;purl;welcome_ok;welcome_html;welcome_plain;include_help
       :Access public
 ⍝ msg is the message we're dealing with. we'll process sender and possibly subject.
 ⍝ R=0: default processing went ok (mode0: added subscriber(s) and sent confirmation mail, mode1: processed confirmation)
@@ -205,7 +205,7 @@
       hdr⍪←'List-Id'(cfg.list_name,' <',⎕C cfg.name_short,'.',(cfg.smtp_from↓⍨cfg.smtp_from⍳'@'),'>')
       hdr⍪←'List-Unsubscribe'('<mailto:',cfg.smtp_from,'?subject=UNSUBSCRIBE>')
       hdr⍪←'List-Help'('<mailto:',cfg.smtp_from,'?subject=HELP>')
-      hdr⍪←'List-Post'('<mailto:',cfg.smtp_from,'>')
+      hdr⍪←'List-Post'ListPostHeader
       hdr⍪←'List-Subscribe'('<mailto:',cfg.smtp_from,'?subject=SUBSCRIBE>')
       hdr⍪←'Precedence' 'list'
      
@@ -264,8 +264,12 @@
                   ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
                   auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
                   ju←#.JARVIS_URL,ju,'&a="',auth,'"'
-                  purl←PrivacyURL
-                  :If 0<≢purl←PrivacyURL
+                  :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
+                      purl←PrivacyURL
+                  :Else
+                      purl←cfg.##.handler_cfg.privacy_url
+                  :EndIf
+                  :If 0<≢purl
                       body←body,⍙'subscribe1_body'token ju purl
                       html←html,⍙'subscribe1_body_html'token ju purl
                   :Else
@@ -301,8 +305,19 @@
                           sub[i].confirmed←1 ⎕DT⊂⎕TS
                           sub[i].⎕EX'token'
                           tit←⍙'thanks4Confirmation_tit'cfg.##.handler_cfg.list_name
-                          body←∊(⍙¨'thanks4Confirmation_body' 'help_plain'),¨¨⊂⎕UCS 13
-                          body_html←∊(⍙¨'thanks4Confirmation_html' 'help_html'),¨¨⊂⎕UCS 13
+                          (welcome_ok welcome_html welcome_plain)←FetchWelcomeURL
+                          include_help←(2=cfg.⎕NC'welcome_include_help')∧0≠cfg.welcome_include_help
+                          :If welcome_ok
+                              body←welcome_plain
+                              body_html←welcome_html
+                              :If include_help
+                                  body,←CRLF,CRLF,∊(⍙'help_plain'),¨⊂CRLF
+                                  body_html,←CRLF,'<hr>',CRLF,∊(⍙'help_html'),¨⊂CRLF
+                              :EndIf
+                          :Else
+                              body←∊(⍙¨'thanks4Confirmation_body' 'help_plain'),¨¨⊂⎕UCS 13
+                              body_html←∊(⍙¨'thanks4Confirmation_html' 'help_html'),¨¨⊂⎕UCS 13
+                          :EndIf
                           res←hdr SendMail(mail)tit body body_html
                           'INFO' 'SUB'Log'confirm'(⊆mail)
                       :Else
@@ -760,7 +775,12 @@
                       d h m←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
                       hb←⍙'add_bot_html'd h m version
                       tb←⍙'add_bot_text'd h m version
-                      :If 0<≢purl←PrivacyURL
+                      :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
+                          purl←PrivacyURL
+                      :Else
+                          purl←cfg.##.handler_cfg.privacy_url
+                      :EndIf
+                      :If 0<≢purl
                           hb,←⊂⍙'privacy_link_html'purl
                           tb,←⊂⍙'privacy_link_text'purl
                       :EndIf
@@ -924,9 +944,9 @@
           'INFO' 'ADM'Log StartOfLog
           :Select ⎕C 1⊃t
           :Case ⎕C ⍙'cmd_subscribe'
-          'INFO' 'ADM'Log'subscribe'
+              'INFO' 'ADM'Log'subscribe'
               E.SubscriberOpts←4
-          'INFO' 'ADM'Log'subscribed'
+              'INFO' 'ADM'Log'subscribed'
               E AddSubscriber¨1↓t
           :Case ⎕C ⍙'cmd_unsubscribe'
               ⍝ Delete subscriber record(s) for specified addresses (no archive anonymization)
@@ -1058,7 +1078,7 @@
               →endSel
           :Case ⎕C ⍙'cmd_setcfg'
               ⍝ JSON body: {"field": value, ...}
-              ⍝ Editable: log_level log_console ratelimit_window_secs ratelimit_max confirm_window_hours attachments attachments_maxbytes list_name
+              ⍝ Editable: log_level log_console ratelimit_window_secs ratelimit_max confirm_window_hours attachments attachments_maxbytes list_name readonly welcome_url welcome_include_help
               log←''
               txt←E.Text~CR
               txt←((txt⍳'{')-1)↓((≢txt)+1-(⌽txt)⍳'}')↑txt
@@ -1068,9 +1088,17 @@
                   ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setcfg_err_json')
                   →endSel
               :EndTrap
-              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name'
+              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
                   :If 2=new.⎕NC fld
                       newval←new⍎fld
+                      :If fld≡'welcome_url'
+                          newval←⍕newval
+                          :If ~0∊⍴newval
+                          :AndIf 0=≢('^https?://'⎕S 0⍠('IC' 1))newval
+                              log,←CR,fld,': rejected (must start with http:// or https://)'
+                              :Continue
+                          :EndIf
+                      :EndIf
                       :If (2≠cfg.⎕NC fld)∨newval≢cfg⍎fld
                           log,←CR,fld,': '
                           log,←(2=cfg.⎕NC fld)/(⎕JSON⍠'Compact' 1)cfg⍎fld
@@ -1097,13 +1125,23 @@
     ∇
 
     ∇ Mid SendHelp replyTo;purl
-      plain←⍙'help_plain'
-      html←⍙'help_html'
+      :If ReadOnlyList
+          plain←⍙'help_readonly_plain'
+          html←⍙'help_readonly_html'
+      :Else
+          plain←⍙'help_plain'
+          html←⍙'help_html'
+      :EndIf
       :If IsAdmin E.sender
           plain,←⍙'help_admin_plain'
           html,←⍙'help_admin_html'
       :EndIf
-      :If 0<≢purl←PrivacyURL
+      :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
+          purl←PrivacyURL
+      :Else
+          purl←cfg.##.handler_cfg.privacy_url
+      :EndIf
+      :If 0<≢purl
           plain←plain,⍙'privacy_link_plain'purl
           html←html,⍙'privacy_link_html'purl
       :EndIf
@@ -1252,9 +1290,55 @@
       (⊂(⎕JSON⍠'Compact' 0)data)⎕NPUT file 1
     ∇
 
+    ∇ r←ReadOnlyList
+      :Access public
+      r←0
+      :If 2=cfg.⎕NC'readonly'
+          r←0≠cfg.readonly
+      :EndIf
+      :If ~r
+      :AndIf 2=cfg.⎕NC'admins_only_posting'
+          r←0≠cfg.admins_only_posting
+      :EndIf
+    ∇
+
+    ∇ r←ListPostHeader
+      :Access public
+      :If ReadOnlyList
+          r←'NO'
+      :Else
+          r←'<mailto:',cfg.smtp_from,'>'
+      :EndIf
+    ∇
+
+    ∇ r←ForwardReadonlyPost E;mid;prefix;admins;adm;subject;body
+      :Access public
+      mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
+      prefix←'[',cfg.list_name,'] '
+      subject←prefix,⍙'readonly_admin_tit'E.subject
+      body←⍙'readonly_admin_body'E.sender E.subject E.Text
+      admins←,⊆cfg.admin_accounts
+      :If 0<≢admins
+          :For adm :In admins
+              ('In-Reply-To'mid)SendMail adm subject body
+          :EndFor
+      :Else
+          'WARN' 'ADM'Log'readonly inquiry not forwarded: no admin_accounts configured'(⊆E.sender)
+      :EndIf
+      ('In-Reply-To'mid)SendMail E.sender(prefix,(⍙'Re'),E.subject)(⍙'readonly_user_body'cfg.list_name)
+      'INFO' 'SYS'Log'readonly inquiry forwarded to admins'(⊆E.sender)
+      r←1
+    ∇
+
     ∇ res_ns←SendAndAdd2Digest E;t;p;sub;e;c;s;msg;nam;smtp_cfg;Subject;res;hd;headers;file;orig_from;mmsg;email;ht;hb;tt;tb;b;smtp;txt;orig;data_folder;data;rx;part;⎕TRAP;ti;chunk;multipart;i;attachments;iter;multiparts;∆;len;h;y;htmlPart;textPart;inlineImages;inlineImagesNoCid;pt;alternative;cleanText;related;img;keptAttachments;mixed;blacklist;⎕TRAP;opts
       :Access public
       blacklist←GetBlacklist
+      :If ReadOnlyList
+      :AndIf ~IsAdmin E.sender
+          ResetBounce E.sender
+          res_ns←ForwardReadonlyPost E
+          →0
+      :EndIf
      
       res_ns←⎕NC''
       p←⎕NPARTS E.Filename
@@ -1308,7 +1392,7 @@
       hd⍪←'List-Id'(cfg.list_name,' <',⎕C cfg.name_short,'.',(cfg.smtp_from↓⍨cfg.smtp_from⍳'@'),'>')
       hd⍪←'List-Unsubscribe'('<mailto:',cfg.smtp_from,'?subject=UNSUBSCRIBE>')
       hd⍪←'List-Help'('<mailto:',cfg.smtp_from,'?subject=HELP>')
-      hd⍪←'List-Post'('<mailto:',cfg.smtp_from,'>')
+      hd⍪←'List-Post'ListPostHeader
       hd⍪←'List-Subscribe'('<mailto:',cfg.smtp_from,'?subject=SUBSCRIBE>')
       hd⍪←'Precedence' 'list'
       origDate←⍕email.Date.DateTime  ⍝ capture before Headers.Clear wipes the Date field
@@ -1600,12 +1684,12 @@
       :EndIf
       :While 1<≢AddHeaders
           :If ⎕NULL≢2⊃AddHeaders
-          :andif 'subject'≢⎕C 1⊃AddHeaders
+          :AndIf 'subject'≢⎕C 1⊃AddHeaders
               mmsg.Headers.Add 2↑AddHeaders
           :EndIf
           AddHeaders←2↓AddHeaders
       :EndWhile
-      mmsg.WriteTo (r←{2⊃(⎕NUNTIE t),0 ⎕NINFO t←(⍵,∊'YYYYMMDD"_"hhmmss".eml"'(1200⌶)¯1 1 ⎕DT⊂⎕TS)(⎕NCREATE⍠'Unique' 1)0}CFG.config.Folder,'archive/')CancellationToken
+      mmsg.WriteTo(r←{2⊃(⎕NUNTIE t),0 ⎕NINFO t←(⍵,∊'YYYYMMDD"_"hhmmss".eml"'(1200⌶)¯1 1 ⎕DT⊂⎕TS)(⎕NCREATE⍠'Unique' 1)0}CFG.config.Folder,'archive/')CancellationToken
       'DBG' 'SMTP'Log'saved message to file ',r
       smtp_cfg←cfg.(smtp_server smtp_port smtp_from smtp_pswd smtp_user smtp_secure)
       smtp←⎕NEW SmtpClient
@@ -1707,7 +1791,12 @@
       ht←'<!--alisia_header--><table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 8px 0;"><tr><td style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_top_html'dateStr orig_from))),'</td></tr></table>'
       bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html'd h m version))  ⍝ HTML footer content before wrapping
       bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text'd h m version))  ⍝ plain text footer
-      :If 0<≢purl←PrivacyURL
+      :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
+          purl←PrivacyURL
+      :Else
+          purl←cfg.##.handler_cfg.privacy_url
+      :EndIf
+      :If 0<≢purl
           bi,←⍙'privacy_link_html'purl  ⍝ append inside footer table cell
           bt,←CRLF,⍙'privacy_link_text'purl
       :EndIf
@@ -1723,9 +1812,53 @@
       :EndFor
     ∇
 
+    ∇ (ok html plain)←FetchWelcomeURL;u;wc;msg
+      ⍝ Optional external welcome page for confirmation mail.
+      ok←0 ⋄ html←'' ⋄ plain←''
+      :If 2≠cfg.⎕NC'welcome_url' ⋄ →0 ⋄ :EndIf
+      u←⍕cfg.welcome_url
+      :If 0∊⍴u ⋄ →0 ⋄ :EndIf
+      :If 0=≢('^https?://'⎕S 0⍠('IC' 1))u
+          'WARN' 'SUB'Log'welcome_url ignored (must start with http:// or https://): ',u
+          →0
+      :EndIf
+      :Trap 0
+          ⎕USING∪←⊂'System.Net,System'
+          wc←⎕NEW WebClient
+          html←wc.DownloadString u
+          :If 0<≢html
+              plain←HTML2Text html
+              ok←1
+              'INFO' 'SUB'Log'welcome_url loaded: ',u
+          :Else
+              'WARN' 'SUB'Log'welcome_url returned empty content: ',u
+          :EndIf
+      :Else
+          msg←{0<⍴⎕DMX.Message:⎕DMX.Message ⋄ 'unknown error'}0
+          'WARN' 'SUB'Log'welcome_url fetch failed: ',u,' (',msg,')'
+      :EndTrap
+    ∇
+
+    ∇ txt←HTML2Text html;t
+      ⍝ Simple HTML -> plain-text fallback for text-only email clients.
+      t←html
+      t←('(?is)<script\b[^>]*>.*?</script>'⎕R''⍠'Mode' 'D')t
+      t←('(?is)<style\b[^>]*>.*?</style>'⎕R''⍠'Mode' 'D')t
+      t←('(?i)<br\s*/?>'⎕R LF⍠'Mode' 'D')t
+      t←('(?i)</p\s*>'⎕R LF,LF⍠'Mode' 'D')t
+      t←('(?is)<[^>]+>'⎕R''⍠'Mode' 'D')t
+      :Trap 0
+          ⎕USING∪←⊂'System.Net,System'
+          t←WebUtility.HtmlDecode t
+      :EndTrap
+      t←('\r\n?'⎕R LF⍠'Mode' 'D')t
+      t←('\n{3,}'⎕R LF,LF⍠'Mode' 'D')t
+      txt←t
+    ∇
+
     ∇ SaveCfg;flds;fld;ovrd
       ⍝ Persist editable cfg fields to cfg_overrides.json for reload after restart
-      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name'
+      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
       flds←flds/⍨2=cfg.⎕NC¨flds
       ovrd←⎕NS''
       :For fld :In flds
@@ -1753,6 +1886,34 @@
     ∇ r←PrivacyURL
       :Access public
       r←'http',(#.Triggers.Config.JarvisSecure/'s'),'://',#.Triggers.Config.(JarvisHost{⍺,('80'≢⍕⍵)/':',⍕⍵}JarvisPort),'/alisia'
+    ∇
+
+    ∇ r←Unq x
+      :Access public
+      r←⍕x
+      :If 2≤≢r
+      :AndIf '"'=⊃r
+      :AndIf '"'=⊃⌽r
+          r←1↓¯1↓r
+      :EndIf
+    ∇
+
+    ∇ s←StatusSecret
+      :Access public
+      s←''
+      :If 2=cfg.⎕NC'status_secret'
+          s←⍕cfg.status_secret
+      :EndIf
+      :If 0∊⍴s
+          :Trap 0
+              s←1⊃160⌶'ALISIA_STATUS_SECRET'
+          :EndTrap
+      :EndIf
+      :If 0∊⍴s
+          :Trap 0
+              s←1⊃160⌶'ALISIA_PROD_MAILPSWD'
+          :EndTrap
+      :EndIf
     ∇
 
 ⍝─── Jarvis Endpoints
@@ -1784,6 +1945,91 @@
     ∇ R←req unsubscribe arg
       :Access public
       ⎕TRAP←0 'S' ⋄ (⎕LC[1]+1)⎕STOP 1⊃⎕XSI
+    ∇
+
+    ∇ R←req status arg;r;secret;ju;auth;email;cid;tstr;t;nowUnix;window;sub;bl;i;isBlack;isFound;isConfirmed;isDisabled;st;ns;msg
+      :Access public
+      req.SetContentType'application/json; charset=utf-8'
+      R←'{"ok":false,"error":"unauthorized"}'
+      r←arg
+      secret←StatusSecret
+      :If 0∊⍴secret
+          'WARN' 'ALISIA'Log'status endpoint rejected: no status secret configured'
+          →0
+      :EndIf
+      ju←'status?h="Alisia"&c="',r.c,'"&e="',r.e,'"&t="',r.t,'"'
+      auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
+      :If auth≢Unq r.a
+          'WARN' 'ALISIA'Log'status endpoint rejected: invalid signature for ',{6::'<missing>' ⋄ Unq r.e}0
+          →0
+      :EndIf
+      cid←{6::'' ⋄ Unq r.c}0
+      :If (~0∊⍴cid)∧cid≢cfg.id
+          R←'{"ok":false,"error":"wrong_list"}'
+          →0
+      :EndIf
+      email←{6::'' ⋄ Unq r.e}0
+      :If 0∊⍴email
+          R←'{"ok":false,"error":"missing_email"}'
+          →0
+      :EndIf
+      window←{2=⍵.⎕NC'status_window_secs':⍵.status_window_secs ⋄ 300}cfg
+      tstr←{6::'' ⋄ Unq r.t}0
+      :If 0∊⍴tstr
+          R←'{"ok":false,"error":"missing_timestamp"}'
+          →0
+      :EndIf
+      :Trap 0
+          t←Int64.Parse tstr
+      :Else
+          R←'{"ok":false,"error":"invalid_timestamp"}'
+          →0
+      :EndTrap
+      nowUnix←DateTimeOffset.UtcNow.ToUnixTimeSeconds
+      :If window<|nowUnix-t
+          R←'{"ok":false,"error":"stale_timestamp"}'
+          →0
+      :EndIf
+     
+      sub←GetSubscribers 2
+      bl←GetBlacklist
+      isBlack←(~0∊⍴bl)∧(⊆email)∊⍥⎕C bl.email
+      i←sub.email⍳⍥⎕C⊂email
+      isFound←i≤≢sub
+      isConfirmed←isFound∧2=sub[i].⎕NC'confirmed'
+      isDisabled←isFound∧(2=sub[i].⎕NC'disabled')∧0≠sub[i].disabled
+     
+      :If isBlack
+          st←'blacklisted'
+      :ElseIf ~isFound
+          st←'unknown'
+      :ElseIf ~isConfirmed
+          st←'pending'
+      :ElseIf isDisabled
+          st←'paused'
+      :Else
+          st←'subscribed'
+      :EndIf
+     
+      ns←⎕NS''
+      ns.ok←1
+      ns.list_id←cfg.id
+      ns.list_name←cfg.list_name
+      ns.email←email
+      ns.status←st
+      ns.blacklisted←isBlack
+      ns.found←isFound
+      ns.confirmed←isConfirmed
+      ns.disabled←isDisabled
+      :If isFound
+      :AndIf 2=sub[i].⎕NC'added'
+          ns.added←⊃'%ISO%'(1200⌶)sub[i].added
+      :EndIf
+      :If isConfirmed
+          ns.confirmed_at←⊃'%ISO%'(1200⌶)sub[i].confirmed
+      :EndIf
+      R←(⎕JSON⍠'Compact' 1)ns
+      'INFO' 'ALISIA'Log'status endpoint: ',email,' → ',st
     ∇
 
 

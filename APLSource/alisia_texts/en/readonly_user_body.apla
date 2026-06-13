@@ -1,0 +1,4 @@
+('The list "%1" is an announcement list.'
+ ''
+ 'Your message was not distributed to all subscribers. It was forwarded to the list administrators instead.'
+ 'The usual commands such as HELP, UNSUBSCRIBE, NOMAIL, and MAIL still work.')
