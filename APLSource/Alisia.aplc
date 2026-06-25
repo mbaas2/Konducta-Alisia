@@ -248,11 +248,9 @@
                   ns←⎕NS''
                   ns.(name email)←adr.(Name Address)
                   ns.added←1 ⎕DT⊂⎕TS
-                'INFO'Log'ns.email=',⍕ns.email
-                'INFO'Log'DR ns.email=',⍕⎕dr ns.email
-                'INFO'Log'sub.email=',⍕sub.email
-                'INFO'Log'DR sub.email=',⍕⎕dr sub.email
                   ns.token←token←1↓,'-',⎕D[?4⍴10],[0.5]⎕A[?4⍴26]
+                      'INFO' 'SUB'Log('ns: ',(⍕ns.email),', ⎕DR=',(⍕⎕dr ns.email),', sub=',⍕sub.email)
+
                   :If (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
                       sub,←ns
                       tit←⍙'subscribe1_tit'cfg.##.handler_cfg.list_name
@@ -268,12 +266,8 @@
                   ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
                   auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
                   ju←#.JARVIS_URL,ju,'&a="',auth,'"'
-                  :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
-                      purl←PrivacyURL
-                  :Else
-                      purl←cfg.##.handler_cfg.privacy_url
-                  :EndIf
-                  :If 0<≢purl
+                  purl←PrivacyURL
+                  :If 0<≢purl←PrivacyURL
                       body←body,⍙'subscribe1_body'token ju purl
                       html←html,⍙'subscribe1_body_html'token ju purl
                   :Else
@@ -779,12 +773,7 @@
                       d h m←(20 ⎕DT⊂⎕TS)DateDiff #.launchTS
                       hb←⍙'add_bot_html'd h m version
                       tb←⍙'add_bot_text'd h m version
-                      :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
-                          purl←PrivacyURL
-                      :Else
-                          purl←cfg.##.handler_cfg.privacy_url
-                      :EndIf
-                      :If 0<≢purl
+                      :If 0<≢purl←PrivacyURL
                           hb,←⊂⍙'privacy_link_html'purl
                           tb,←⊂⍙'privacy_link_text'purl
                       :EndIf
@@ -948,9 +937,9 @@
           'INFO' 'ADM'Log StartOfLog
           :Select ⎕C 1⊃t
           :Case ⎕C ⍙'cmd_subscribe'
-              'INFO' 'ADM'Log'subscribe'
+          'INFO' 'ADM'Log'subscribe'
               E.SubscriberOpts←4
-              'INFO' 'ADM'Log'subscribed'
+          'INFO' 'ADM'Log'subscribed'
               E AddSubscriber¨1↓t
           :Case ⎕C ⍙'cmd_unsubscribe'
               ⍝ Delete subscriber record(s) for specified addresses (no archive anonymization)
@@ -1140,12 +1129,7 @@
           plain,←⍙'help_admin_plain'
           html,←⍙'help_admin_html'
       :EndIf
-      :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
-          purl←PrivacyURL
-      :Else
-          purl←cfg.##.handler_cfg.privacy_url
-      :EndIf
-      :If 0<≢purl
+      :If 0<≢purl←PrivacyURL
           plain←plain,⍙'privacy_link_plain'purl
           html←html,⍙'privacy_link_html'purl
       :EndIf
@@ -1688,12 +1672,12 @@
       :EndIf
       :While 1<≢AddHeaders
           :If ⎕NULL≢2⊃AddHeaders
-          :AndIf 'subject'≢⎕C 1⊃AddHeaders
+          :andif 'subject'≢⎕C 1⊃AddHeaders
               mmsg.Headers.Add 2↑AddHeaders
           :EndIf
           AddHeaders←2↓AddHeaders
       :EndWhile
-      mmsg.WriteTo(r←{2⊃(⎕NUNTIE t),0 ⎕NINFO t←(⍵,∊'YYYYMMDD"_"hhmmss".eml"'(1200⌶)¯1 1 ⎕DT⊂⎕TS)(⎕NCREATE⍠'Unique' 1)0}CFG.config.Folder,'archive/')CancellationToken
+      mmsg.WriteTo (r←{2⊃(⎕NUNTIE t),0 ⎕NINFO t←(⍵,∊'YYYYMMDD"_"hhmmss".eml"'(1200⌶)¯1 1 ⎕DT⊂⎕TS)(⎕NCREATE⍠'Unique' 1)0}CFG.config.Folder,'archive/')CancellationToken
       'DBG' 'SMTP'Log'saved message to file ',r
       smtp_cfg←cfg.(smtp_server smtp_port smtp_from smtp_pswd smtp_user smtp_secure)
       smtp←⎕NEW SmtpClient
@@ -1795,12 +1779,7 @@
       ht←'<!--alisia_header--><table class="alisia_header" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 8px 0;"><tr><td style="',s.header,'">',({1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_top_html'dateStr orig_from))),'</td></tr></table>'
       bi←{1<≡⍵:∊⍵ ⋄ ⍵}(⍙('add_bot_html'd h m version))  ⍝ HTML footer content before wrapping
       bt←{1<≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}(⍙('add_bot_text'd h m version))  ⍝ plain text footer
-      :If 0=cfg.##.handler_cfg.⎕NC'privacy_url'
-          purl←PrivacyURL
-      :Else
-          purl←cfg.##.handler_cfg.privacy_url
-      :EndIf
-      :If 0<≢purl
+      :If 0<≢purl←PrivacyURL
           bi,←⍙'privacy_link_html'purl  ⍝ append inside footer table cell
           bt,←CRLF,⍙'privacy_link_text'purl
       :EndIf
@@ -1820,7 +1799,7 @@
       ⍝ Optional external welcome page for confirmation mail.
       ok←0 ⋄ html←'' ⋄ plain←''
       :If 2≠cfg.⎕NC'welcome_url' ⋄ →0 ⋄ :EndIf
-      u←⍕cfg.welcome_url
+    u←⍕cfg.welcome_url
       :If 0∊⍴u ⋄ →0 ⋄ :EndIf
       :If 0=≢('^https?://'⎕S 0⍠('IC' 1))u
           'WARN' 'SUB'Log'welcome_url ignored (must start with http:// or https://): ',u
@@ -1862,7 +1841,7 @@
 
     ∇ SaveCfg;flds;fld;ovrd
       ⍝ Persist editable cfg fields to cfg_overrides.json for reload after restart
-      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
+            flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
       flds←flds/⍨2=cfg.⎕NC¨flds
       ovrd←⎕NS''
       :For fld :In flds
@@ -1994,7 +1973,7 @@
           R←'{"ok":false,"error":"stale_timestamp"}'
           →0
       :EndIf
-     
+
       sub←GetSubscribers 2
       bl←GetBlacklist
       isBlack←(~0∊⍴bl)∧(⊆email)∊⍥⎕C bl.email
@@ -2002,7 +1981,7 @@
       isFound←i≤≢sub
       isConfirmed←isFound∧2=sub[i].⎕NC'confirmed'
       isDisabled←isFound∧(2=sub[i].⎕NC'disabled')∧0≠sub[i].disabled
-     
+
       :If isBlack
           st←'blacklisted'
       :ElseIf ~isFound
@@ -2014,7 +1993,7 @@
       :Else
           st←'subscribed'
       :EndIf
-     
+
       ns←⎕NS''
       ns.ok←1
       ns.list_id←cfg.id
