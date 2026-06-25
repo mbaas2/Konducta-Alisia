@@ -248,9 +248,11 @@
                   ns←⎕NS''
                   ns.(name email)←adr.(Name Address)
                   ns.added←1 ⎕DT⊂⎕TS
+                'INFO'Log'ns.email=',⍕ns.email
+                'INFO'Log'DR ns.email=',⍕⎕dr ns.email
+                'INFO'Log'sub.email=',⍕sub.email
+                'INFO'Log'DR sub.email=',⍕⎕dr sub.email
                   ns.token←token←1↓,'-',⎕D[?4⍴10],[0.5]⎕A[?4⍴26]
-                      'INFO' 'SUB'Log('ns: ',(⍕ns.email),', ⎕DR=',(⍕⎕dr ns.email),', sub=',⍕sub.email)
-
                   :If (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
                       sub,←ns
                       tit←⍙'subscribe1_tit'cfg.##.handler_cfg.list_name
