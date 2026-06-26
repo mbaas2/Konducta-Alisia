@@ -213,9 +213,9 @@
       file←CFG.config.Folder,'subscribers.json'
       sub←GetSubscribers 2
       sub∆←⎕JSON ⎕JSON sub   ⍝ make sure it's not a ref!
-                'INFO'Log'sub=',⎕json sub
-                'INFO'Log'sub∆=',⎕json sub∆
-                'INFO'Log'⎕dr sub∆=',⍕⎕dr sub∆
+      'INFO'Log'sub=',⎕JSON sub
+      'INFO'Log'sub∆=',⎕JSON sub∆
+      'INFO'Log'⎕dr sub∆=',⍕⎕DR sub∆
       R←0
       :If 9=⎕NC'opts'
           E←⎕JSON ⎕JSON opts
@@ -237,12 +237,12 @@
           ns.added←1 ⎕DT⊂⎕TS
           blacklist,←ns
           (⊂(⎕JSON⍠'Compact' 0)blacklist)⎕NPUT(CFG.config.Folder,'blacklist.json')1
-          :if ∨/z←sub.email∊⍥⎕C⊂ns.email
-          sub←(~z)/sub∆
-          res←hdr SendMail(ns.email)(⍙'tit_blacklisted')(⍙'body_blacklisted')
-          :else 
+          :If ∨/z←sub.email∊⍥⎕C⊂ns.email
+              sub←(~z)/sub∆
+              res←hdr SendMail(ns.email)(⍙'tit_blacklisted')(⍙'body_blacklisted')
+          :Else
           ⍝ TODO: info an sender, dass adrs nicht gefunden?
-          :endif
+          :EndIf
       :Else
           :Select opts #._hasBitSet 1  ⍝ regular subscription (0) or confirmation(1)
           :Case 0
@@ -256,7 +256,7 @@
                   ns.added←1 ⎕DT⊂⎕TS
                   ns.token←token←1↓,'-',⎕D[?4⍴10],[0.5]⎕A[?4⍴26]
                   :If 0=≢sub
-                  :orif (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
+                  :OrIf (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
                       sub,←ns
                       tit←⍙'subscribe1_tit'cfg.##.handler_cfg.list_name
                   :Else ⍝ just update existing record with new token...
@@ -361,9 +361,9 @@
       :If ⎕NEXISTS file
           sub←(⎕JSON⍠'Dialect' 'JSON5')1⊃⎕NGET file
           :If mode∊0 3
-              sub←(∊{0::0 ⋄ 2=⍵.⎕NC'confirmed'}¨sub)/sub
-              sub←(∊{0::0 ⋄2=⍵.⎕NC'disabled':~⍵.disabled ⋄ 1}¨sub)/sub
-              sub←(∊{0::0 ⋄2=⍵.⎕NC'enabled':⍵.enabled ⋄ 1}¨sub)/sub
+              :If 0<≢sub ⋄ sub←(∊{2=⍵.⎕NC'confirmed'}¨sub)/sub ⋄ :EndIf
+              :If 0<≢sub ⋄ sub←(∊{2=⍵.⎕NC'disabled':~⍵.disabled ⋄ 1}¨sub)/sub ⋄ :EndIf
+              :If 0<≢sub ⋄ sub←(∊{2=⍵.⎕NC'enabled':⍵.enabled ⋄ 1}¨sub)/sub ⋄ :EndIf
           :EndIf
           :If mode=3
               :For c :In sub
@@ -381,7 +381,7 @@
       :EndIf
       sub←⎕JSON ⎕JSON sub  ⍝ clone it...
       :If 0<≢blacklist
-      :andif 0<≢sub
+      :AndIf 0<≢sub
           sub←(~sub.email∊⍥⎕C blacklist.email)/sub
       :EndIf
     ∇
@@ -943,9 +943,9 @@
           'INFO' 'ADM'Log StartOfLog
           :Select ⎕C 1⊃t
           :Case ⎕C ⍙'cmd_subscribe'
-          'INFO' 'ADM'Log'subscribe'
+              'INFO' 'ADM'Log'subscribe'
               E.SubscriberOpts←4
-          'INFO' 'ADM'Log'subscribed'
+              'INFO' 'ADM'Log'subscribed'
               E AddSubscriber¨1↓t
           :Case ⎕C ⍙'cmd_unsubscribe'
               ⍝ Delete subscriber record(s) for specified addresses (no archive anonymization)
@@ -1678,12 +1678,12 @@
       :EndIf
       :While 1<≢AddHeaders
           :If ⎕NULL≢2⊃AddHeaders
-          :andif 'subject'≢⎕C 1⊃AddHeaders
+          :AndIf 'subject'≢⎕C 1⊃AddHeaders
               mmsg.Headers.Add 2↑AddHeaders
           :EndIf
           AddHeaders←2↓AddHeaders
       :EndWhile
-      mmsg.WriteTo (r←{2⊃(⎕NUNTIE t),0 ⎕NINFO t←(⍵,∊'YYYYMMDD"_"hhmmss".eml"'(1200⌶)¯1 1 ⎕DT⊂⎕TS)(⎕NCREATE⍠'Unique' 1)0}CFG.config.Folder,'archive/')CancellationToken
+      mmsg.WriteTo(r←{2⊃(⎕NUNTIE t),0 ⎕NINFO t←(⍵,∊'YYYYMMDD"_"hhmmss".eml"'(1200⌶)¯1 1 ⎕DT⊂⎕TS)(⎕NCREATE⍠'Unique' 1)0}CFG.config.Folder,'archive/')CancellationToken
       'DBG' 'SMTP'Log'saved message to file ',r
       smtp_cfg←cfg.(smtp_server smtp_port smtp_from smtp_pswd smtp_user smtp_secure)
       smtp←⎕NEW SmtpClient
@@ -1805,7 +1805,7 @@
       ⍝ Optional external welcome page for confirmation mail.
       ok←0 ⋄ html←'' ⋄ plain←''
       :If 2≠cfg.⎕NC'welcome_url' ⋄ →0 ⋄ :EndIf
-    u←⍕cfg.welcome_url
+      u←⍕cfg.welcome_url
       :If 0∊⍴u ⋄ →0 ⋄ :EndIf
       :If 0=≢('^https?://'⎕S 0⍠('IC' 1))u
           'WARN' 'SUB'Log'welcome_url ignored (must start with http:// or https://): ',u
@@ -1847,7 +1847,7 @@
 
     ∇ SaveCfg;flds;fld;ovrd
       ⍝ Persist editable cfg fields to cfg_overrides.json for reload after restart
-            flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
+      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
       flds←flds/⍨2=cfg.⎕NC¨flds
       ovrd←⎕NS''
       :For fld :In flds
@@ -1979,7 +1979,7 @@
           R←'{"ok":false,"error":"stale_timestamp"}'
           →0
       :EndIf
-
+     
       sub←GetSubscribers 2
       bl←GetBlacklist
       isBlack←(~0∊⍴bl)∧(⊆email)∊⍥⎕C bl.email
@@ -1987,7 +1987,7 @@
       isFound←i≤≢sub
       isConfirmed←isFound∧2=sub[i].⎕NC'confirmed'
       isDisabled←isFound∧(2=sub[i].⎕NC'disabled')∧0≠sub[i].disabled
-
+     
       :If isBlack
           st←'blacklisted'
       :ElseIf ~isFound
@@ -1999,7 +1999,7 @@
       :Else
           st←'subscribed'
       :EndIf
-
+     
       ns←⎕NS''
       ns.ok←1
       ns.list_id←cfg.id
