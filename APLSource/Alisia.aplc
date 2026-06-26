@@ -213,6 +213,9 @@
       file←CFG.config.Folder,'subscribers.json'
       sub←GetSubscribers 2
       sub∆←⎕JSON ⎕JSON sub   ⍝ make sure it's not a ref!
+                'INFO'Log'sub=',⎕json sub
+                'INFO'Log'sub∆=',⎕json sub∆
+                'INFO'Log'⎕dr sub∆=',⍕⎕dr sub∆
       R←0
       :If 9=⎕NC'opts'
           E←⎕JSON ⎕JSON opts
@@ -234,9 +237,12 @@
           ns.added←1 ⎕DT⊂⎕TS
           blacklist,←ns
           (⊂(⎕JSON⍠'Compact' 0)blacklist)⎕NPUT(CFG.config.Folder,'blacklist.json')1
-          z←sub.email∊⍥⎕C⊂ns.email
-          sub∆←(~z)/sub∆
+          :if ∨/z←sub.email∊⍥⎕C⊂ns.email
+          sub←(~z)/sub∆
           res←hdr SendMail(ns.email)(⍙'tit_blacklisted')(⍙'body_blacklisted')
+          :else 
+          ⍝ TODO: info an sender, dass adrs nicht gefunden?
+          :endif
       :Else
           :Select opts #._hasBitSet 1  ⍝ regular subscription (0) or confirmation(1)
           :Case 0
@@ -248,12 +254,9 @@
                   ns←⎕NS''
                   ns.(name email)←adr.(Name Address)
                   ns.added←1 ⎕DT⊂⎕TS
-                'INFO'Log'ns.email=',⍕ns.email
-                'INFO'Log'DR ns.email=',⍕⎕dr ns.email
-                'INFO'Log'sub.email=',⍕sub.email
-                'INFO'Log'DR sub.email=',⍕⎕dr sub.email
                   ns.token←token←1↓,'-',⎕D[?4⍴10],[0.5]⎕A[?4⍴26]
-                  :If (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
+                  :If 0=≢sub
+                  :orif (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
                       sub,←ns
                       tit←⍙'subscribe1_tit'cfg.##.handler_cfg.list_name
                   :Else ⍝ just update existing record with new token...
