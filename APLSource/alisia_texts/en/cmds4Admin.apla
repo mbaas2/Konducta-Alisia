@@ -6,4 +6,5 @@
 '⍙cmd_log⍙'
 '⍙cmd_setcfg⍙'
 '⍙cmd_restart⍙'
+'⍙cmd_stats⍙'
 )
