@@ -361,9 +361,9 @@
       :If ⎕NEXISTS file
           sub←(⎕JSON⍠'Dialect' 'JSON5')1⊃⎕NGET file
           :If mode∊0 3
-              sub←(∊{2=⍵.⎕NC'confirmed'}¨sub)/sub
-              sub←(∊{2=⍵.⎕NC'disabled':~⍵.disabled ⋄ 1}¨sub)/sub
-              sub←(∊{2=⍵.⎕NC'enabled':⍵.enabled ⋄ 1}¨sub)/sub
+              sub←(∊{0::0 ⋄ 2=⍵.⎕NC'confirmed'}¨sub)/sub
+              sub←(∊{0::0 ⋄2=⍵.⎕NC'disabled':~⍵.disabled ⋄ 1}¨sub)/sub
+              sub←(∊{0::0 ⋄2=⍵.⎕NC'enabled':⍵.enabled ⋄ 1}¨sub)/sub
           :EndIf
           :If mode=3
               :For c :In sub
@@ -381,6 +381,7 @@
       :EndIf
       sub←⎕JSON ⎕JSON sub  ⍝ clone it...
       :If 0<≢blacklist
+      :andif 0<≢sub
           sub←(~sub.email∊⍥⎕C blacklist.email)/sub
       :EndIf
     ∇
