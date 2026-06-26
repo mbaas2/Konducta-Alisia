@@ -448,18 +448,19 @@
       :EndIf
     ∇
 
-    ∇ r←isAdmin BuildStatsTable msg_count;cv;n;i;body;html;blacklist;root;di;proc;t1;t2;pc;procCpuPct;sysCpuPct;procRAM;totalRAM;gcinfo;sha;sha7;commit_url;commit_html;EncH;rdStat;s1;s2;vhdr;repo;vn;vname;vi
+    ∇ r←isAdmin BuildStatsTable msg_count_em;cv;n;i;body;html;blacklist;root;di;proc;t1;t2;pc;procCpuPct;sysCpuPct;procRAM;totalRAM;gcinfo;sha;sha7;commit_url;commit_html;EncH;rdStat;s1;s2;vhdr;repo;vn;vname;vi;email
       :Access public
       ⍝ Builds a 2-column statistics table (plain text + HTML).
       ⍝ isAdmin: 1=Admin (additional lines), 0=regular subscriber
       ⍝ msg_count: data.count from UserAction
       ⍝ r: 2-element vector (plain text ; HTML)
+      (msg_count email)))←msg_count_em
       cv←⍙'stats_labels'                          ⍝ Base rows (for all users)
       n←msg_count(≢GetSubscribers 0)(≢GetSubscribers 2)
       n,←⊂¯3↓RMB∊(⍕¨(20 ⎕DT⊂⎕TS)DateDiff #.launchTS),¨⊂' / '
       n,←⊂'Dyalog APL ',(1⊃'.'⎕WG'APLVersion'),' ',2⊃'.'⎕WG'APLVersion'
       commit_html←''                                       ⍝ HTML-only link for commit row (empty = no override)
-      :If isAdmin∨IsDevUser
+      :If isAdmin∨IsDevUser⊂email
           ⎕USING∪←⊂'System.IO,System.IO.FileSystem.DriveInfo'
           root←Path.GetPathRoot⊂#.Home
           di←⎕NEW DriveInfo(⊂root)
