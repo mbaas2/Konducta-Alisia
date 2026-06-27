@@ -1667,10 +1667,8 @@
     ∇
 
 
-    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes;Utf8Bytes;HeaderText
+    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes
       :Access public
-      Utf8Bytes←{'UTF-8'⎕UCS ⍵}
-      HeaderText←{128∧.>⎕UCS ⍵:⍵ ⋄ '=?utf-8?B?',(Convert.ToBase64String ⊂Utf8Bytes ⍵),'?='}
       ⍝ ⍵=To Title Body [Html[bcc]]
       :If 0=⎕NC'AddHeaders'
           AddHeaders←⍬
@@ -1697,7 +1695,7 @@
       :Else
           mmsg.Body←part
       :EndIf
-      mmsg.Subject←HeaderText ∊2⊃ToTitBody_Html_bcc
+      mmsg.Subject←∊2⊃ToTitBody_Html_bcc
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc
