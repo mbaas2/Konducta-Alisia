@@ -1,4 +1,4 @@
 (
- '[Alisia] Willkommen bei Alisia * Sie wurden für die Liste "%" angemeldet.'
+ '[%1] Willkommen bei %1 * Sie wurden für die Liste "%2" angemeldet.'
  ''
 )
