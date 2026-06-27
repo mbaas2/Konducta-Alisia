@@ -454,7 +454,7 @@
       ⍝ isAdmin: 1=Admin (additional lines), 0=regular subscriber
       ⍝ msg_count: data.count from UserAction
       ⍝ r: 2-element vector (plain text ; HTML)
-      (msg_count email)))←msg_count_em
+      (msg_count email)←msg_count_em
       cv←⍙'stats_labels'                          ⍝ Base rows (for all users)
       n←msg_count(≢GetSubscribers 0)(≢GetSubscribers 2)
       n,←⊂¯3↓RMB∊(⍕¨(20 ⎕DT⊂⎕TS)DateDiff #.launchTS),¨⊂' / '
@@ -730,7 +730,7 @@
               ('In-Reply-To'Mid)SendMail replyTo(⍙'unsubscribe_tit'cfg.list_name)(⍙'unsubscribe_reply'cfg.list_name)
      
           :Case ⍙'cmd_stats'
-              digest_body digest_html←(IsAdmin E.sender)BuildStatsTable data.count
+              digest_body digest_html←(IsAdmin E.sender)BuildStatsTable(data.count E.sender)
               ('In-Reply-To'Mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)digest_body digest_html
      
           :Case ⍙'cmd_help'
@@ -922,7 +922,7 @@
       :EndFor
     ∇
 
-    ∇ AdminAction E;t;arg;mail;h;txt;fn;rc;mid;sub;i;s;si;status;jdate;ts;name;body;html;cols;prefix;n;filt;lines;entry;bg;EncL;cf;log;new;newval;replyTo
+    ∇ AdminAction E;t;arg;mail;h;txt;fn;rc;mid;sub;i;s;si;status;jdate;ts;name;body;html;cols;prefix;n;filt;lines;entry;bg;EncL;cf;log;new;newval;replyTo;data;data_folder;file;digest_body;digest_html
       :Access public
       prefix←'[',cfg.list_name,'] '
       mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
@@ -1116,6 +1116,13 @@
                   ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setcfg_no_changes')
               :EndIf
               →endSel
+          :Case ⎕C ⍙'cmd_stats'
+              p←⎕NPARTS E.Filename
+              data_folder←(1⊃⎕NPARTS ¯1↓1⊃p),'archive/'
+              file←data_folder,'data.json5'
+              data←(⎕JSON⍠'Dialect' 'JSON5')1⊃(⎕NGET)file
+              digest_body digest_html←(IsAdmin E.sender)BuildStatsTable(data.count E.sender)
+              ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)digest_body digest_html
           :Case ⎕C ⍙'cmd_restart'
               ⎕SIGNAL 801
           :EndSelect
