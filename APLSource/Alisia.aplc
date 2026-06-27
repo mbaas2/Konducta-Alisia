@@ -1669,8 +1669,8 @@
 
     ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes;Utf8Bytes;HeaderText
       :Access public
-      Utf8Bytes←{b←'UTF-8'⎕UCS ⍵ ⋄ ⎕USING,←⊂'System' ⋄ a←Array.CreateInstance Byte (⍴b) ⋄ a[⍳⍴b]←Byte¨b ⋄ a}
-      HeaderText←{128∧.>⎕UCS ⍵:⍵ ⋄ '=?utf-8?B?',(Convert.ToBase64String Utf8Bytes ⍵),'?='}
+      Utf8Bytes←{⎕USING,←⊂'System.Text' ⋄ e←Encoding.UTF8 ⋄ e.GetBytes ⍵}
+      HeaderText←{128∧.>⎕UCS ⍵:⍵ ⋄ '=?utf-8?B?',(⎕USING,←⊂'System' ⋄ Convert.ToBase64String Utf8Bytes ⍵),'?='}
       ⍝ ⍵=To Title Body [Html[bcc]]
       :If 0=⎕NC'AddHeaders'
           AddHeaders←⍬
