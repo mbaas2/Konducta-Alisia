@@ -299,7 +299,7 @@
                       :If (2=sub[i].⎕NC'added')
                       'DEBUG'Log'DR added = ',⎕dr sub[i].added
                       'DEBUG'Log'sub[i]=',⎕json sub[i]
-                      :if ∧(1 ⎕DT⊂⎕TS)-sub[i].added>window÷24
+                      :if (1 ⎕DT⊂⎕TS)-sub[i].added>window÷24
                           sub←(i≠⍳≢sub)/sub
                           'WARN' 'SUB'Log'confirm expired'(⊆mail)
                           res←hdr SendMail(mail)(⍙'confirm_expired_tit')(⍙'confirm_expired_body'cfg.##.handler_cfg.list_name(⍕⌊window))
