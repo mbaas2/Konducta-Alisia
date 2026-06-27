@@ -299,7 +299,7 @@
                       :If (2=sub[i].⎕NC'added')
                       'DEBUG'Log'DR added = ',⎕dr sub[i].added
                       'DEBUG'Log'sub[i]=',⎕json sub[i]
-                      :if (1 ⎕DT⊂⎕TS)-sub[i].added>window÷24
+                      :if ((1 ⎕DT⊂⎕TS)-sub[i].added)>window÷24
                           sub←(i≠⍳≢sub)/sub
                           'WARN' 'SUB'Log'confirm expired'(⊆mail)
                           res←hdr SendMail(mail)(⍙'confirm_expired_tit')(⍙'confirm_expired_body'cfg.##.handler_cfg.list_name(⍕⌊window))
@@ -1667,9 +1667,10 @@
     ∇
 
 
-    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes;Utf8Bytes
+    ∇ r←{AddHeaders}SendMail ToTitBody_Html_bcc;mmsg;smtp_cfg;smtp;opts;plain;html;part;alt;bytes;Utf8Bytes;HeaderText
       :Access public
-      Utf8Bytes←{'UTF-8'⎕UCS ⍵}
+      Utf8Bytes←{⎕USING,←⊂'System.Text' ⋄ Encoding.UTF8.GetBytes ⍵}
+      HeaderText←{128∧.>⎕UCS ⍵:⍵ ⋄ '=?utf-8?B?',(⎕USING,←⊂'System' ⋄ Convert.ToBase64String Utf8Bytes ⍵),'?='}
       ⍝ ⍵=To Title Body [Html[bcc]]
       :If 0=⎕NC'AddHeaders'
           AddHeaders←⍬
@@ -1682,8 +1683,7 @@
       part←⎕NEW MimeKit.TextPart(⊂'plain')
       part.ContentType.Charset←'utf-8'
       part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
-      ⍝part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(⊂Utf8Bytes plain))
-      part.Text←plain
+      part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(⊂Utf8Bytes plain))
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
@@ -1691,14 +1691,13 @@
           part←⎕NEW MimeKit.TextPart(⊂'html')
           part.ContentType.Charset←'utf-8'
           part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
-          ⍝part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(Utf8Bytes html))
-          part.Text←html
+          part.Content←⎕NEW MimeKit.MimeContent(⎕NEW MemoryStream(⊂Utf8Bytes html))
           alt.Add part
           mmsg.Body←alt
       :Else
           mmsg.Body←part
       :EndIf
-      mmsg.Subject←∊2⊃ToTitBody_Html_bcc
+      mmsg.Subject←HeaderText ∊2⊃ToTitBody_Html_bcc
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc
@@ -1721,7 +1720,7 @@
       opts←FormatOptions.Default.Clone
       opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
       r←smtp.Send(opts mmsg CancellationToken ⎕NULL)
-      'DBG' 'SMTP'Log'smtp.Send "',(2⊃ToTitBody_Html_bcc),'" → ',(⍕1⊃ToTitBody_Html_bcc),': ',r
+      'DBG' 'SMTP'Log'smtp.Send "',(∊2⊃ToTitBody_Html_bcc),'" → ',(⍕1⊃ToTitBody_Html_bcc),': ',r
       r←200≠⊃2⊃⎕VFI r~'.'
       smtp.Disconnect 1 CancellationToken
     ∇
