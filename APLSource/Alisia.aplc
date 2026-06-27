@@ -1088,10 +1088,18 @@
                   ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setcfg_err_json')
                   →endSel
               :EndTrap
-              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
+              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help' 'privacy_url'
                   :If 2=new.⎕NC fld
                       newval←new⍎fld
                       :If fld≡'welcome_url'
+                          newval←⍕newval
+                          :If ~0∊⍴newval
+                          :AndIf 0=≢('^https?://'⎕S 0⍠('IC' 1))newval
+                              log,←CR,fld,': rejected (must start with http:// or https://)'
+                              :Continue
+                          :EndIf
+                      :EndIf
+                      :If fld≡'privacy_url'
                           newval←⍕newval
                           :If ~0∊⍴newval
                           :AndIf 0=≢('^https?://'⎕S 0⍠('IC' 1))newval
@@ -1144,7 +1152,7 @@
           html,←⍙'help_admin_html'
       :EndIf
       :If 0<≢purl←PrivacyURL
-          plain←plain,⍙'privacy_link_plain'purl
+          plain←plain,⍙'privacy_link_text'purl
           html←html,⍙'privacy_link_html'purl
       :EndIf
      
@@ -1855,7 +1863,7 @@
 
     ∇ SaveCfg;flds;fld;ovrd
       ⍝ Persist editable cfg fields to cfg_overrides.json for reload after restart
-      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help'
+      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help' 'privacy_url'
       flds←flds/⍨2=cfg.⎕NC¨flds
       ovrd←⎕NS''
       :For fld :In flds
@@ -1882,7 +1890,12 @@
 
     ∇ r←PrivacyURL
       :Access public
-      r←'http',(#.Triggers.Config.JarvisSecure/'s'),'://',#.Triggers.Config.(JarvisHost{⍺,('80'≢⍕⍵)/':',⍕⍵}JarvisPort),'/alisia'
+      :If 2=cfg.⎕NC'privacy_url'
+      :AndIf 0<≢cfg.privacy_url
+          r←cfg.privacy_url
+      :Else
+          r←'http',(#.Triggers.Config.JarvisSecure/'s'),'://',#.Triggers.Config.(JarvisHost{⍺,('80'≢⍕⍵)/':',⍕⍵}JarvisPort),'/alisia'
+      :EndIf
     ∇
 
     ∇ r←Unq x
