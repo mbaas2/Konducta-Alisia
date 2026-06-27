@@ -577,7 +577,13 @@
       p←⎕NPARTS E.Filename
       data_folder←(1⊃⎕NPARTS ¯1↓1⊃p),'archive/'
       file←data_folder,'data.json5'
-      data←(⎕JSON⍠'Dialect' 'JSON5')1⊃(⎕NGET)file
+      :if ⎕nexists file
+         data←(⎕JSON⍠'Dialect' 'JSON5')1⊃(⎕NGET)file
+      :else 
+        data←⎕ns''
+        data.count←0
+        (⊂⎕json data)⎕nput file
+      :endif
       Mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'   ⍝ original msg id that we may need to reply to...
       prefix←'[',cfg.list_name,'] '
       ⍝ undocumented: admin can append >other@example.com to subject to redirect reply
