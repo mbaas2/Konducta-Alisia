@@ -168,6 +168,7 @@
           ovrd←⎕JSON 1⊃⎕NGET dir,'cfg_overrides.json'
           {⍵ cfg.{⍎⍺,'←⍵'}ovrd⍎⍵}¨↓ovrd.⎕NL ¯2
       :EndTrap
+      :If 2≠cfg.⎕NC'list_brand' ⋄ cfg.list_brand←'Alisia' ⋄ :EndIf
     ∇
 
     ∇ R←{opts}AddSubscriber msg;m;sub;sub∆;dir;file;z;log;rc;token;body;tit;i;res;ns;adr;html;E;ju;blacklist;hdr;mail;body_html;window;purl;welcome_ok;welcome_html;welcome_plain;include_help
@@ -249,7 +250,7 @@
               :If 0<≢sub
               :AndIf z←(⊆adr.Address){⍺∊⍥⎕C(∊2=⍵.⎕NC⊂'confirmed')/⍵.email}sub   ⍝ do we know this email address already?
                   R←1 0
-                  res←hdr SendMail(adr.Address)(⍙'notSubscribed1_tit')(⍙'notSubscribed1_body')
+                  res←hdr SendMail(adr.Address)(⍙'notSubscribed1_tit'cfg.list_brand)(⍙'notSubscribed1_body')
               :Else   ⍝ no, new subscriber
                   ns←⎕NS''
                   ns.(name email)←adr.(Name Address)
@@ -258,14 +259,14 @@
                   :If 0=≢sub
                   :OrIf (≢sub)<z←sub.email⍳⍥⎕C⊂ns.email
                       sub,←ns
-                      tit←⍙'subscribe1_tit'cfg.##.handler_cfg.list_name
+                      tit←⍙'subscribe1_tit'cfg.list_brand cfg.##.handler_cfg.list_name
                   :Else ⍝ just update existing record with new token...
                       sub[z]←⊂ns
-                      tit←⍙'subscribe1r_tit'cfg.##.handler_cfg.list_name
+                      tit←⍙'subscribe1r_tit'cfg.list_brand cfg.##.handler_cfg.list_name
                   :EndIf
                   html←body←''
                   :If opts #._hasBitSet 2
-                      tit←⍙'subscribe2_tit'cfg.##.handler_cfg.list_name
+                      tit←⍙'subscribe2_tit'cfg.list_brand cfg.##.handler_cfg.list_name
                   :EndIf
                   secret←1⊃160⌶'ALISIA_PROD_MAILPSWD'
                   ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
@@ -295,7 +296,10 @@
               :AndIf (≢sub)≥i←sub.email⍳⍥⎕C⊆mail
                   :If 0=sub[i].⎕NC'confirmed'
                       window←{2=⍵.⎕NC'confirm_window_hours':⍵.confirm_window_hours ⋄ 48}cfg
-                      :If (2=sub[i].⎕NC'added')∧(1 ⎕DT⊂⎕TS)-sub[i].added>window÷24
+                      :If (2=sub[i].⎕NC'added')
+                      'DEBUG'Log'DR added = ',⎕dr sub[i].added
+                      'DEBUG'Log'sub[i]=',⎕json sub[i]
+                      :if ∧(1 ⎕DT⊂⎕TS)-sub[i].added>window÷24
                           sub←(i≠⍳≢sub)/sub
                           'WARN' 'SUB'Log'confirm expired'(⊆mail)
                           res←hdr SendMail(mail)(⍙'confirm_expired_tit')(⍙'confirm_expired_body'cfg.##.handler_cfg.list_name(⍕⌊window))
@@ -303,11 +307,12 @@
                           (⊂(⎕JSON ⎕OPT'Compact' 0)sub)⎕NPUT file 1
                           →0
                       :EndIf
+                      :endif
                       :If ∨/sub[i].token⍷⍥⎕C token  ⍝ check if token matches (well, if it is found in the subject)
                           R←0 0
                           sub[i].confirmed←1 ⎕DT⊂⎕TS
                           sub[i].⎕EX'token'
-                          tit←⍙'thanks4Confirmation_tit'cfg.##.handler_cfg.list_name
+                          tit←⍙'thanks4Confirmation_tit'cfg.list_brand
                           (welcome_ok welcome_html welcome_plain)←FetchWelcomeURL
                           include_help←(2=cfg.⎕NC'welcome_include_help')∧0≠cfg.welcome_include_help
                           :If welcome_ok
@@ -324,15 +329,15 @@
                           res←hdr SendMail(mail)tit body body_html
                           'INFO' 'SUB'Log'confirm'(⊆mail)
                       :Else
-                          res←hdr SendMail(mail)(⍙'token_mismatch_tit'sub[i].token)(⍙'statusNotChanged_body')
+                          res←hdr SendMail(mail)(⍙'token_mismatch_tit'cfg.list_brand sub[i].token)(⍙'statusNotChanged_body')
                           R←3 0
                       :EndIf
                   :Else
-                      res←hdr SendMail(mail)(⍙'emailAlreadyConfirmed_tit')(⍙'statusNotChanged_body')
+                      res←hdr SendMail(mail)(⍙'emailAlreadyConfirmed_tit'cfg.list_brand)(⍙'statusNotChanged_body')
                       R←4 0
                   :EndIf
               :Else
-                  res←hdr SendMail(mail)(⍙'emailConfirm_mismatch_tit')(⍙'statusNotChanged_body')
+                  res←hdr SendMail(mail)(⍙'emailConfirm_mismatch_tit'cfg.list_brand)(⍙'statusNotChanged_body')
                   R←2 0
                   →0
               :EndIf
@@ -1088,7 +1093,7 @@
                   ('In-Reply-To'mid)SendMail replyTo(prefix,(⍙'Re'),E.subject)(⍙'setcfg_err_json')
                   →endSel
               :EndTrap
-              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help' 'privacy_url'
+              :For fld :In 'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help' 'privacy_url' 'list_brand'
                   :If 2=new.⎕NC fld
                       newval←new⍎fld
                       :If fld≡'welcome_url'
@@ -1104,6 +1109,13 @@
                           :If ~0∊⍴newval
                           :AndIf 0=≢('^https?://'⎕S 0⍠('IC' 1))newval
                               log,←CR,fld,': rejected (must start with http:// or https://)'
+                              :Continue
+                          :EndIf
+                      :EndIf
+                      :If fld≡'list_brand'
+                          newval←⍕newval
+                          :If 0∊⍴newval
+                              log,←CR,fld,': rejected (must not be empty)'
                               :Continue
                           :EndIf
                       :EndIf
@@ -1244,7 +1256,7 @@
           (⊂(⎕JSON⍠'Compact' 0)sub)⎕NPUT file 1
           'WARN' 'BOUNCE'Log('disabled after ',(⍕z.bounces),' bounces')(⊆z.email)
           :For adm :In ,⊆cfg.admin_accounts
-              SendMail adm(⍙'bounce_admin_tit'failed)(⍙'bounce_admin_body'failed(⍕z.bounces))
+              SendMail adm(⍙'bounce_admin_tit'cfg.list_brand failed)(⍙'bounce_admin_body'failed(⍕z.bounces))
           :EndFor
       :EndIf
     ∇
@@ -1863,7 +1875,7 @@
 
     ∇ SaveCfg;flds;fld;ovrd
       ⍝ Persist editable cfg fields to cfg_overrides.json for reload after restart
-      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help' 'privacy_url'
+      flds←'log_level' 'log_console' 'ratelimit_window_secs' 'ratelimit_max' 'confirm_window_hours' 'attachments' 'attachments_maxbytes' 'list_name' 'readonly' 'welcome_url' 'welcome_include_help' 'privacy_url' 'list_brand'
       flds←flds/⍨2=cfg.⎕NC¨flds
       ovrd←⎕NS''
       :For fld :In flds
