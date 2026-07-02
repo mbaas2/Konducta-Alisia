@@ -1709,6 +1709,11 @@
       'WARN' 'SUBJ'Log'[C3] plain    distinct nonASCII CPs: ',⍕∪{(127<⍵)/⍵}⎕UCS∊plain
       'WARN' 'SUBJ'Log'[C3] readback distinct nonASCII CPs: ',⍕∪{(127<⍵)/⍵}⎕UCS∊part.Text
       'WARN' 'SUBJ'Log'[C3] plain len=',(⍕≢∊plain),' readback len=',(⍕≢∊part.Text),' U+FFFD-count=',⍕+/65533=⎕UCS∊part.Text
+      ⍝ [C4] proof: feed the SAME text as a forced 16-bit char array (contains U+0100) and read back
+      bytes←⎕NEW MimeKit.TextPart(⊂'plain')
+      bytes.ContentType.Charset←'utf-8'
+      bytes.Text←(∊plain),⎕UCS 256
+      'WARN' 'SUBJ'Log'[C4] ⎕DR plain=',(⍕⎕DR∊plain),' widened ⎕DR=',(⍕⎕DR(∊plain),⎕UCS 256),' widened readback: ',dbgCP bytes.Text
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
