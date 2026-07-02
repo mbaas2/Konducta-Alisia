@@ -11,16 +11,6 @@
       version←v
     ∇
 
-    ∇ r←dbgCP txt;u
-    ⍝ debug helper: codepoint diagnostics to locate UTF-8 / U+FFFD corruption
-    ⍝ shows length, positions+codepoints of every non-ASCII char, flags U+FFFD (65533)
-      :Access public shared
-      txt←∊txt
-      u←⎕UCS txt
-      r←'len=',(⍕≢txt),' nonASCII@',(⍕⍸127<u),'=',(⍕(127<u)/u),' «',(txt/⍨~u∊13 10),'»'
-      :If 65533∊u ⋄ r←'*** U+FFFD *** ',r ⋄ :EndIf
-    ∇
-
     ∇ r←toWide txt
     ⍝ Force a character vector to a 16-bit (⎕DR 160) array so the Dyalog↔.NET bridge
     ⍝ marshals it as UTF-16. 8-bit (⎕DR 80) char arrays are mis-decoded as UTF-8 by the
@@ -288,7 +278,6 @@
                   :If opts #._hasBitSet 2
                       tit←⍙'subscribe2_tit'cfg.list_brand cfg.##.handler_cfg.list_name
                   :EndIf
-                  'WARN' 'SUBJ'Log'[A] tit right after ⍙ *_tit: ',dbgCP tit
                   secret←1⊃160⌶'ALISIA_PROD_MAILPSWD'
                   ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
                   auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
@@ -303,8 +292,6 @@
                   :EndIf
                   body←∊body,¨CR
                   html←∊html,¨CR
-                  'WARN' 'SUBJ'Log'[A2] plain body after ⍙ (⍙ concat): ',dbgCP body
-                  'WARN' 'SUBJ'Log'[B] tit as arg to SendMail: ',dbgCP tit
                   res←hdr SendMail(ns.email)tit body html
                   :If opts #._hasBitSet 2
                       'INFO' 'SUB'Log('subscribe-pending by admin: ',E.sender)(⊆ns.email)
@@ -874,7 +861,7 @@
                                       tit,←msg
                                   :EndIf
                               :EndIf
-                              email.Subject←tit
+                              email.Subject←toWide tit
                                   ⍝ HTML parts: fade + insert ht/hb
                               :For part :In email.BodyParts
                                   :If part{6::0 ⋄ ⍺⍎⍵}'IsHtml'
@@ -910,7 +897,7 @@
                                           pt←pt0
                                       :EndIf
                                       part.ContentType.Charset←'utf-8'
-                                      part.Text←pt
+                                      part.Text←toWide pt
                                   :EndIf
                               :EndFor
                                   ⍝ Add as message/rfc822 attachment to multipart
@@ -940,9 +927,9 @@
                   :If cmd1≡⍙'cmd_getmsgs'
                       :If 0<getmsgs_count
                           mmsg←⎕NEW MimeMessage
-                          mmsg.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+                          mmsg.From.Add ⎕NEW MailboxAddress((toWide cfg.list_name)cfg.smtp_from)
                           mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse⊂replyTo).Address))
-                          mmsg.Subject←prefix,(⍙'Re'),E.subject
+                          mmsg.Subject←toWide prefix,(⍙'Re'),E.subject
                           mmsg.Body←mixed
                           ('In-Reply-To'Mid)SendMimeMsg mmsg
                           'INFO' 'SYS'Log'GETMSGS-Mail gesendet: ',(⍕getmsgs_count),' Nachrichten'
@@ -1367,8 +1354,6 @@
       mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
       prefix←'[',cfg.list_name,'] '
       subject←prefix,⍙'readonly_admin_tit'E.subject
-      'WARN' 'SUBJ'Log'[R] ForwardReadonlyPost E.subject: ',dbgCP E.subject
-      'WARN' 'SUBJ'Log'[R] ForwardReadonlyPost admin subject: ',dbgCP subject
       body←⍙'readonly_admin_body'E.sender E.subject E.Text
       admins←,⊆cfg.admin_accounts
       :If 0<≢admins
@@ -1468,7 +1453,7 @@
       ⍝mmsg←⎕NEW MimeMessage
       ⍝email←mmsg.Load p CancellationToken
       email.From.Clear
-      email.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+      email.From.Add ⎕NEW MailboxAddress((toWide cfg.list_name)cfg.smtp_from)
       (ht hb tt tb)←MakeHeaderFooter origDate orig_from
      
       orig←⍕email.Body
@@ -1585,7 +1570,7 @@
               :EndIf
               htmlPart.ContentType.Charset←'utf-8'
      
-              htmlPart.Text←pt
+              htmlPart.Text←toWide pt
           :ElseIf part.ContentId≢⎕NULL
               inlineImages,←part  ⍝ inline images (cid:...)
           :Else
@@ -1618,7 +1603,7 @@
     ⍝ Remove [image: ...] placeholders
           cleanText←textPart.Text
           cleanText←'\[image:[^\]]+\]'⎕R''⍠'Mode' 'D'⊢cleanText
-          textPart.Text←tt,CRLF,cleanText,CRLF,tb
+          textPart.Text←toWide tt,CRLF,cleanText,CRLF,tb
           alternative.Add textPart
       :EndIf
      
@@ -1666,7 +1651,7 @@
       :Else
           email.Body←alternative
       :EndIf
-      email.Subject←Subject
+      email.Subject←toWide Subject
       email.WriteTo p CancellationToken
       E.Text←email.TextBody
       E.type←3
@@ -1681,12 +1666,12 @@
       opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
       ⍝ Clear addresses...
       email.To.Clear
-      email.To.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+      email.To.Add ⎕NEW MailboxAddress((toWide cfg.list_name)cfg.smtp_from)
       sub←GetSubscribers 0
       :For chunk :In 100{⍵⊂[1]⍨(≢⍵)⍴⍺↑1}sub  ⍝ do we need configuarable chunk size?
           email.Bcc.Clear
           :For nam :In chunk
-              email.Bcc.Add(⎕NEW MailboxAddress nam.(name email))
+              email.Bcc.Add(⎕NEW MailboxAddress((toWide nam.name)nam.email))
       ⍝ TODO: don't save every mail once beta is over...
             ⍝   file←∊(2↑⎕NPARTS p),'.',nam.email,3⊃⎕NPARTS p
             ⍝   email.WriteTo file CancellationToken
@@ -1706,16 +1691,13 @@
       :EndIf
       AddHeaders←,AddHeaders
       plain←{2=≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}3⊃ToTitBody_Html_bcc
-      'WARN' 'SUBJ'Log'[C] SendMail received subj: ',dbgCP 2⊃ToTitBody_Html_bcc
-      'WARN' 'SUBJ'Log'[C] SendMail received plain: ',dbgCP plain
 
       mmsg←⎕NEW MimeMessage
-      mmsg.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
+      mmsg.From.Add ⎕NEW MailboxAddress((toWide cfg.list_name)cfg.smtp_from)
       part←⎕NEW MimeKit.TextPart(⊂'plain')
       part.ContentType.Charset←'utf-8'
       part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
       part.Text←toWide plain
-      'WARN' 'SUBJ'Log'[C2] part.Text read-back from MimeKit (should be clean now): ',dbgCP part.Text
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
@@ -1729,9 +1711,7 @@
       :Else
           mmsg.Body←part
       :EndIf
-      'WARN' 'SUBJ'Log'[D] just before setting Subject: ',dbgCP ∊2⊃ToTitBody_Html_bcc
       mmsg.Subject←toWide 2⊃ToTitBody_Html_bcc   ⍝ MB: toWide → 16-bit array so bridge marshals UTF-16 (else ü→U+FFFD). Subject← (not Headers.Add) lets MimeKit do RFC2047 itself
-      'WARN' 'SUBJ'Log'[E] mmsg.Subject read-back from MimeKit (should be clean now): ',dbgCP mmsg.Subject
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc
@@ -1753,7 +1733,6 @@
       mmsg.Date←DateTimeOffset.Now
       opts←FormatOptions.Default.Clone
       opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
-      'WARN' 'SUBJ'Log'[F] right before smtp.Send, mmsg.Subject: ',dbgCP mmsg.Subject
       r←smtp.Send(opts mmsg CancellationToken ⎕NULL)
       'DBG' 'SMTP'Log'smtp.Send "',(∊2⊃ToTitBody_Html_bcc),'" → ',(⍕1⊃ToTitBody_Html_bcc),': ',r
       r←200≠⊃2⊃⎕VFI r~'.'
