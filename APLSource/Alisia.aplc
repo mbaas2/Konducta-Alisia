@@ -278,7 +278,7 @@
                   :If opts #._hasBitSet 2
                       tit←⍙'subscribe2_tit'cfg.list_brand cfg.##.handler_cfg.list_name
                   :EndIf
-                  'DBG' 'SUBJ'Log'[A] tit right after ⍙ *_tit: ',dbgCP tit
+                  'WARN' 'SUBJ'Log'[A] tit right after ⍙ *_tit: ',dbgCP tit
                   secret←1⊃160⌶'ALISIA_PROD_MAILPSWD'
                   ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
                   auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
@@ -293,8 +293,8 @@
                   :EndIf
                   body←∊body,¨CR
                   html←∊html,¨CR
-                  'DBG' 'SUBJ'Log'[A2] plain body after ⍙ (⍙ concat): ',dbgCP body
-                  'DBG' 'SUBJ'Log'[B] tit as arg to SendMail: ',dbgCP tit
+                  'WARN' 'SUBJ'Log'[A2] plain body after ⍙ (⍙ concat): ',dbgCP body
+                  'WARN' 'SUBJ'Log'[B] tit as arg to SendMail: ',dbgCP tit
                   res←hdr SendMail(ns.email)tit body html
                   :If opts #._hasBitSet 2
                       'INFO' 'SUB'Log('subscribe-pending by admin: ',E.sender)(⊆ns.email)
@@ -1357,6 +1357,8 @@
       mid←E.headers{⊃((↑⍺)⍪⊂'')[(↑⍺)[;1]⍳⊂⍵;2]}'Message-ID'
       prefix←'[',cfg.list_name,'] '
       subject←prefix,⍙'readonly_admin_tit'E.subject
+      'WARN' 'SUBJ'Log'[R] ForwardReadonlyPost E.subject: ',dbgCP E.subject
+      'WARN' 'SUBJ'Log'[R] ForwardReadonlyPost admin subject: ',dbgCP subject
       body←⍙'readonly_admin_body'E.sender E.subject E.Text
       admins←,⊆cfg.admin_accounts
       :If 0<≢admins
@@ -1694,8 +1696,8 @@
       :EndIf
       AddHeaders←,AddHeaders
       plain←{2=≡⍵:∊⍵,¨⊂CRLF ⋄ ⍵}3⊃ToTitBody_Html_bcc
-      'DBG' 'SUBJ'Log'[C] SendMail received subj: ',dbgCP 2⊃ToTitBody_Html_bcc
-      'DBG' 'SUBJ'Log'[C] SendMail received plain: ',dbgCP plain
+      'WARN' 'SUBJ'Log'[C] SendMail received subj: ',dbgCP 2⊃ToTitBody_Html_bcc
+      'WARN' 'SUBJ'Log'[C] SendMail received plain: ',dbgCP plain
 
       mmsg←⎕NEW MimeMessage
       mmsg.From.Add ⎕NEW MailboxAddress cfg.(list_name smtp_from)
@@ -1703,7 +1705,7 @@
       part.ContentType.Charset←'utf-8'
       part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
       part.Text←plain
-      'DBG' 'SUBJ'Log'[C2] part.Text read-back from MimeKit: ',dbgCP part.Text
+      'WARN' 'SUBJ'Log'[C2] part.Text read-back from MimeKit: ',dbgCP part.Text
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
@@ -1717,9 +1719,9 @@
       :Else
           mmsg.Body←part
       :EndIf
-      'DBG' 'SUBJ'Log'[D] just before Headers.Add Subject: ',dbgCP ∊2⊃ToTitBody_Html_bcc
+      'WARN' 'SUBJ'Log'[D] just before Headers.Add Subject: ',dbgCP ∊2⊃ToTitBody_Html_bcc
       mmsg.Headers.Add(⊂'Subject')(⊂∊2⊃ToTitBody_Html_bcc)
-      'DBG' 'SUBJ'Log'[E] mmsg.Subject read-back from MimeKit: ',dbgCP mmsg.Subject
+      'WARN' 'SUBJ'Log'[E] mmsg.Subject read-back from MimeKit: ',dbgCP mmsg.Subject
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc
@@ -1741,7 +1743,7 @@
       mmsg.Date←DateTimeOffset.Now
       opts←FormatOptions.Default.Clone
       opts.International←0  ⍝ force RFC2047 encoding for non-ASCII headers (Subject etc.)
-      'DBG' 'SUBJ'Log'[F] right before smtp.Send, mmsg.Subject: ',dbgCP mmsg.Subject
+      'WARN' 'SUBJ'Log'[F] right before smtp.Send, mmsg.Subject: ',dbgCP mmsg.Subject
       r←smtp.Send(opts mmsg CancellationToken ⎕NULL)
       'DBG' 'SMTP'Log'smtp.Send "',(∊2⊃ToTitBody_Html_bcc),'" → ',(⍕1⊃ToTitBody_Html_bcc),': ',r
       r←200≠⊃2⊃⎕VFI r~'.'
