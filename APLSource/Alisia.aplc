@@ -1706,6 +1706,9 @@
       part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
       part.Text←plain
       'WARN' 'SUBJ'Log'[C2] part.Text read-back from MimeKit: ',dbgCP part.Text
+      'WARN' 'SUBJ'Log'[C3] plain    distinct nonASCII CPs: ',⍕∪{(127<⍵)/⍵}⎕UCS∊plain
+      'WARN' 'SUBJ'Log'[C3] readback distinct nonASCII CPs: ',⍕∪{(127<⍵)/⍵}⎕UCS∊part.Text
+      'WARN' 'SUBJ'Log'[C3] plain len=',(⍕≢∊plain),' readback len=',(⍕≢∊part.Text),' U+FFFD-count=',⍕+/65533=⎕UCS∊part.Text
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
@@ -1719,8 +1722,8 @@
       :Else
           mmsg.Body←part
       :EndIf
-      'WARN' 'SUBJ'Log'[D] just before Headers.Add Subject: ',dbgCP ∊2⊃ToTitBody_Html_bcc
-      mmsg.Headers.Add(⊂'Subject')(⊂∊2⊃ToTitBody_Html_bcc)
+      'WARN' 'SUBJ'Log'[D] just before setting Subject: ',dbgCP ∊2⊃ToTitBody_Html_bcc
+      mmsg.Subject←∊2⊃ToTitBody_Html_bcc   ⍝ MB: was Headers.Add(⊂'Subject')(…) → DOMAIN ERROR in MimeKit 4.14; Subject← is unambiguous & does RFC2047 itself
       'WARN' 'SUBJ'Log'[E] mmsg.Subject read-back from MimeKit: ',dbgCP mmsg.Subject
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
