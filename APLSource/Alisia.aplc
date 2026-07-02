@@ -21,6 +21,16 @@
       :If 65533∊u ⋄ r←'*** U+FFFD *** ',r ⋄ :EndIf
     ∇
 
+    ∇ r←toWide txt
+    ⍝ Force a character vector to a 16-bit (⎕DR 160) array so the Dyalog↔.NET bridge
+    ⍝ marshals it as UTF-16. 8-bit (⎕DR 80) char arrays are mis-decoded as UTF-8 by the
+    ⍝ bridge, turning every char>127 (ü,ä,ö,ß,…) into U+FFFD. Append a >255 char to widen,
+    ⍝ then reshape back to the original length to drop it (reshape preserves the wide type).
+      :Access public shared
+      txt←∊txt
+      r←(≢txt)⍴txt,⎕UCS 256
+    ∇
+
     ∇ r←GetStyles;home
       :Access public
       ⍝ Lazy-load level styles from Config/alisia_styles.json5 (cached in shared field)
@@ -1704,16 +1714,8 @@
       part←⎕NEW MimeKit.TextPart(⊂'plain')
       part.ContentType.Charset←'utf-8'
       part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
-      part.Text←plain
-      'WARN' 'SUBJ'Log'[C2] part.Text read-back from MimeKit: ',dbgCP part.Text
-      'WARN' 'SUBJ'Log'[C3] plain    distinct nonASCII CPs: ',⍕∪{(127<⍵)/⍵}⎕UCS∊plain
-      'WARN' 'SUBJ'Log'[C3] readback distinct nonASCII CPs: ',⍕∪{(127<⍵)/⍵}⎕UCS∊part.Text
-      'WARN' 'SUBJ'Log'[C3] plain len=',(⍕≢∊plain),' readback len=',(⍕≢∊part.Text),' U+FFFD-count=',⍕+/65533=⎕UCS∊part.Text
-      ⍝ [C4] proof: feed the SAME text as a forced 16-bit char array (contains U+0100) and read back
-      bytes←⎕NEW MimeKit.TextPart(⊂'plain')
-      bytes.ContentType.Charset←'utf-8'
-      bytes.Text←(∊plain),⎕UCS 256
-      'WARN' 'SUBJ'Log'[C4] ⎕DR plain=',(⍕⎕DR∊plain),' widened ⎕DR=',(⍕⎕DR(∊plain),⎕UCS 256),' widened readback: ',dbgCP bytes.Text
+      part.Text←toWide plain
+      'WARN' 'SUBJ'Log'[C2] part.Text read-back from MimeKit (should be clean now): ',dbgCP part.Text
       :If 3<≢ToTitBody_Html_bcc
           html←{1<≡⍵:∊⍵ ⋄ ⍵}4⊃ToTitBody_Html_bcc
           alt←⎕NEW MimeKit.Multipart(⊂'alternative')
@@ -1721,15 +1723,15 @@
           part←⎕NEW MimeKit.TextPart(⊂'html')
           part.ContentType.Charset←'utf-8'
           part.ContentTransferEncoding←MimeKit.ContentEncoding.Base64
-          part.Text←html
+          part.Text←toWide html
           alt.Add part
           mmsg.Body←alt
       :Else
           mmsg.Body←part
       :EndIf
       'WARN' 'SUBJ'Log'[D] just before setting Subject: ',dbgCP ∊2⊃ToTitBody_Html_bcc
-      mmsg.Subject←∊2⊃ToTitBody_Html_bcc   ⍝ MB: was Headers.Add(⊂'Subject')(…) → DOMAIN ERROR in MimeKit 4.14; Subject← is unambiguous & does RFC2047 itself
-      'WARN' 'SUBJ'Log'[E] mmsg.Subject read-back from MimeKit: ',dbgCP mmsg.Subject
+      mmsg.Subject←toWide 2⊃ToTitBody_Html_bcc   ⍝ MB: toWide → 16-bit array so bridge marshals UTF-16 (else ü→U+FFFD). Subject← (not Headers.Add) lets MimeKit do RFC2047 itself
+      'WARN' 'SUBJ'Log'[E] mmsg.Subject read-back from MimeKit (should be clean now): ',dbgCP mmsg.Subject
       mmsg.To.Add(⎕NEW MailboxAddress(''(MailboxAddress.Parse ToTitBody_Html_bcc[1]).Address))
       :If 4<≢ToTitBody_Html_bcc
       :AndIf 0<≢ToTitBody_Html_bcc
