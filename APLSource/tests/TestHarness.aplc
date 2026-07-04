@@ -1,0 +1,334 @@
+:Class TestHarness
+    ⍝ Test harness for Alisia — builds and drops .eml fixtures into the
+    ⍝ Konducta pop3repeat folder so Alisia's UserAction / SendAndAdd2Digest
+    ⍝ pipeline processes them as if they had arrived via POP3.
+    ⍝
+    ⍝ Prerequisites
+    ⍝   • Alisia must already be loaded in the current workspace so that
+    ⍝     MimeKit/MailKit are available via #.NuGet. Construct one Alisia
+    ⍝     instance (which triggers NuGet.Setup) before building a harness.
+    ⍝   • The caller supplies the absolute path of the pop3repeat folder
+    ⍝     used by the Konducta deployment under test.
+    ⍝
+    ⍝ Typical session
+    ⍝   )LOAD ALISIA                  ⍝ brings up Alisia + NuGet
+    ⍝   ⎕IO←1
+    ⍝   th←⎕NEW #.Handlers.Alisia.tests.TestHarness 'C:\Konducta\pop3repeat\'
+    ⍝   th.FixturesDir←'C:\Konducta-Alisia\APLSource\tests\fixtures\'
+    ⍝
+    ⍝   ⍝ Single-command fixtures
+    ⍝   {}th.DropCommand 'alice@example.org' 'list@apl-germany.de' 'SUBSCRIBE'
+    ⍝   {}th.DropCommand 'admin@apl-germany.de' 'list@…' 'LISTMEMBERS'
+    ⍝
+    ⍝   ⍝ Threaded reply chain (depth 3, alternating authors)
+    ⍝   thread←th.MakeThread 'alice@…' 'bob@…' 'list@…' 3 'Re: Frage zu APL'
+    ⍝   {}th.DropMime¨thread
+    ⍝
+    ⍝   ⍝ Patch & drop an existing .eml (swap identity, keep MIME body)
+    ⍝   o←⎕NS'' ⋄ o.From←'alice@…' ⋄ o.Subject←'Re: repro'
+    ⍝   {}'path/to/seed.eml' th.PatchAndDrop o
+    ⍝
+    ⍝   ⍝ Historical-problem fixture from fixtures/
+    ⍝   {}th.DropFixture 'outlook_forward_deep_chain.eml'
+    ⍝
+    ⍝ After dropping: trigger Konducta's poll cycle (whatever your deployment
+    ⍝ does — e.g. wait for the pop3repeat watcher or call it manually), then
+    ⍝ inspect the archive / outbound folder to check the replies.
+
+    :Field private repeat_dir
+    :Field private counter←0
+    :Field private prefix_
+    :Field private sep
+    :Field public  FixturesDir←''
+    :Field public  MailKitVersion←'4.14.0'
+
+    ⍝ ──────────── construction ─────────────────────────────────────────────
+
+    ∇ make1 dir
+      :Access public
+      :Implements constructor
+      Init(dir 'th')
+    ∇
+
+    ∇ make(dir name_prefix)
+      :Access public
+      :Implements constructor
+      Init(dir name_prefix)
+    ∇
+
+    ∇ Init(dir name_prefix);project_dir
+      :If 0=⎕NC'#.NuGet'
+          ⎕SIGNAL⊂('EN' 11)('Message' 'TestHarness requires Alisia to be loaded first (#.NuGet missing).')
+      :EndIf
+      ⍝ Mirror Alisia.make's ⎕USING so ⎕NEW MimeMessage et al. resolve.
+      project_dir←(739⌶0),'/Eventler_email_smtp_',MailKitVersion
+      ⎕USING←('System' 'System.Text' 'System.IO' 'MimeKit'),#.NuGet.Using project_dir
+      ⍝ Canonicalise the pop3repeat dir (trailing separator, native style).
+      :If '\'∊dir ⋄ sep←'\' ⋄ :Else ⋄ sep←'/' ⋄ :EndIf
+      repeat_dir←dir,(~(⊃⌽dir)∊'/\')/sep
+      prefix_←name_prefix
+      3 ⎕MKDIR repeat_dir    ⍝ idempotent
+    ∇
+
+    ⍝ ──────────── primitive drops ──────────────────────────────────────────
+
+    ⍝ Drop raw .eml text (bytes as char vector). Returns the file path written.
+    ⍝ Use this for hand-crafted / malformed MIME that MimeKit would refuse.
+    ∇ p←Drop raw_eml
+      :Access public
+      p←NextPath
+      (⊂raw_eml)⎕NPUT p 1
+    ∇
+
+    ⍝ Drop an existing .eml file (simple copy). Returns new path.
+    ∇ p←DropFile src
+      :Access public
+      p←NextPath
+      p ⎕NCOPY src
+    ∇
+
+    ⍝ Drop a built MimeMessage (properly RFC 5322 serialized). Returns new path.
+    ∇ p←DropMime mmsg
+      :Access public
+      p←NextPath
+      mmsg.WriteTo p
+    ∇
+
+    ⍝ Drop a named fixture from FixturesDir. Returns new path.
+    ∇ p←DropFixture name
+      :Access public
+      :If 0=≢FixturesDir
+          ⎕SIGNAL⊂('EN' 11)('Message' 'TestHarness.FixturesDir is not set.')
+      :EndIf
+      p←DropFile FixturesDir,(~(⊃⌽FixturesDir)∊'/\')/sep,name
+    ∇
+
+    ⍝ List available fixtures as a vector of filenames (without path).
+    ∇ r←ListFixtures;files;base
+      :Access public
+      r←⍬
+      :If 0=≢FixturesDir ⋄ →0 ⋄ :EndIf
+      :Trap 22
+          base←FixturesDir,(~(⊃⌽FixturesDir)∊'/\')/sep
+          files←⊃1(⎕NINFO⍠1)base,'*.eml'
+          r←{(≢base)↓⍵}¨files
+      :EndTrap
+    ∇
+
+    ⍝ ──────────── builders ─────────────────────────────────────────────────
+
+    ⍝ Build a plain MimeMessage. bodyText / bodyHtml empty → that part is omitted.
+    ∇ m←MakeMail(from_ to_ subj bodyText bodyHtml);plain;html;alt
+      :Access public
+      m←⎕NEW MimeMessage
+      m.From.Add MailboxAddress.Parse from_
+      m.To.Add   MailboxAddress.Parse to_
+      m.Subject←subj
+      m.MessageId←GenMessageId from_
+      m.Date←System.DateTimeOffset.Now
+      :If (0<≢bodyText)∧(0<≢bodyHtml)
+          plain←⎕NEW MimeKit.TextPart(⊂'plain')   ⋄ plain.Text←bodyText
+          html ←⎕NEW MimeKit.TextPart(⊂'html')    ⋄ html.Text ←bodyHtml
+          alt←⎕NEW MimeKit.Multipart(⊂'alternative')
+          alt.Add plain ⋄ alt.Add html
+          m.Body←alt
+      :ElseIf 0<≢bodyHtml
+          html←⎕NEW MimeKit.TextPart(⊂'html')     ⋄ html.Text←bodyHtml
+          m.Body←html
+      :Else
+          plain←⎕NEW MimeKit.TextPart(⊂'plain')   ⋄ plain.Text←bodyText
+          m.Body←plain
+      :EndIf
+    ∇
+
+    ⍝ Command mail: cmd goes into Subject, body is empty.
+    ∇ m←MakeCommand(from_ to_ cmd)
+      :Access public
+      m←MakeMail from_ to_ cmd '' ''
+    ∇
+
+    ⍝ Shortcut: build-and-drop a command mail.
+    ∇ p←DropCommand args
+      :Access public
+      p←DropMime MakeCommand args
+    ∇
+
+    ⍝ Build a reply to `parent` (MimeMessage). Sets In-Reply-To / References,
+    ⍝ prepends "Re: " if needed, quotes parent text + html.
+    ⍝ args ≡ (from_ bodyText bodyHtml)
+    ∇ m←parent MakeReply args;from_;bodyText;bodyHtml;subj;to_;r
+      :Access public
+      (from_ bodyText bodyHtml)←args
+      subj←parent.Subject
+      :If 3>≢subj ⋄ subj←'Re: ',subj
+      :ElseIf ~(1 ⎕C 3↑subj)≡'re:' ⋄ subj←'Re: ',subj
+      :EndIf
+      to_←MailboxToString parent.From
+      m←MakeMail from_ to_ subj(QuotedText bodyText parent)(QuotedHtml bodyHtml parent)
+      m.InReplyTo←parent.MessageId
+      :For r :In parent.References ⋄ m.References.Add r ⋄ :EndFor
+      m.References.Add parent.MessageId
+    ∇
+
+    ⍝ Build an alternating-author reply chain of depth N.
+    ⍝ args ≡ (from_a from_b to_ depth root_subject)
+    ⍝ Returns (N+1) MimeMessages in chronological order, [1] is the root.
+    ∇ ms←MakeThread args;from_a;from_b;to_;depth;subj0;i;from_;txt;parent
+      :Access public
+      (from_a from_b to_ depth subj0)←args
+      ms←,⊂MakeMail from_a to_ subj0 'Root message.' '<p>Root message.</p>'
+      :For i :In ⍳depth
+          from_←(2|i)⊃from_a from_b  ⍝ alternate (i=1 → from_b replies to from_a)
+          txt←'Reply #',(⍕i),' from ',from_
+          parent←⊃⌽ms
+          ms,←⊂parent MakeReply(from_ txt('<p>',txt,'</p>'))
+      :EndFor
+    ∇
+
+    ⍝ ──────────── patching existing .eml ──────────────────────────────────
+
+    ⍝ Load a .eml, apply optional overrides, return patched MimeMessage.
+    ⍝ overrides: namespace. Recognised fields (any subset):
+    ⍝   From, To, Subject, MessageId, Date (as ISO-8601 string), InReplyTo,
+    ⍝   AddReference (string to add to References list).
+    ∇ m←Patch(path overrides);nl;tmp
+      :Access public
+      ⍝ MimeMessage.Load is static; we mimic Alisia's idiom of newing a throwaway
+      ⍝ instance so Dyalog's .NET bridge resolves the call cleanly.
+      tmp←⎕NEW MimeMessage
+      m←tmp.Load path
+      ⍝ ⎕NL ¯2 returns a space-padded char matrix; deblank each row so simple
+      ⍝ ≡ comparisons work against unpadded literals.
+      nl←{⍵~' '}¨↓⎕C overrides.⎕NL ¯2
+      :If (⊂'from')∊nl        ⋄ m.From.Clear ⋄ m.From.Add MailboxAddress.Parse overrides.From ⋄ :EndIf
+      :If (⊂'to')∊nl          ⋄ m.To.Clear   ⋄ m.To.Add   MailboxAddress.Parse overrides.To   ⋄ :EndIf
+      :If (⊂'subject')∊nl     ⋄ m.Subject←overrides.Subject           ⋄ :EndIf
+      :If (⊂'messageid')∊nl   ⋄ m.MessageId←overrides.MessageId       ⋄ :EndIf
+      :If (⊂'date')∊nl        ⋄ m.Date←System.DateTimeOffset.Parse overrides.Date ⋄ :EndIf
+      :If (⊂'inreplyto')∊nl   ⋄ m.InReplyTo←overrides.InReplyTo       ⋄ :EndIf
+      :If (⊂'addreference')∊nl⋄ m.References.Add overrides.AddReference ⋄ :EndIf
+    ∇
+
+    ⍝ Shortcut: patch a .eml and drop the result. Returns new path.
+    ∇ p←path PatchAndDrop overrides
+      :Access public
+      p←DropMime Patch path overrides
+    ∇
+
+    ⍝ ──────────── edge-case builders ───────────────────────────────────────
+
+    ∇ m←MakeEmpty(from_ to_)
+      :Access public
+      ⍝ No subject, empty plain body. Exercises Alisia's "empty mail" handling.
+      m←MakeMail from_ to_ '' '' ''
+    ∇
+
+    ∇ m←MakeHugeHtml(from_ to_ subj n_kb);body
+      :Access public
+      ⍝ Ballast a predictable HTML body up to ≈n_kb KB (plus tiny overhead).
+      body←'<p>',((⌈(n_kb×1024)÷26)⍴'lorem ipsum dolor sit amet '),'</p>'
+      m←MakeMail from_ to_ subj 'Huge html follows.' body
+    ∇
+
+    ∇ p←DropMalformedMime(from_ to_ subj);hdr;raw
+      :Access public
+      ⍝ Unclosed multipart boundary — MimeKit would refuse to build this,
+      ⍝ so we go via raw Drop instead.
+      hdr←'From: ',from_,CRLF
+      hdr,←'To: ',to_,CRLF
+      hdr,←'Subject: ',subj,CRLF
+      hdr,←'Message-ID: <',(GenMessageId from_),'>',CRLF
+      hdr,←'Date: ',(System.DateTimeOffset.Now.ToString 'r'),CRLF
+      hdr,←'MIME-Version: 1.0',CRLF
+      hdr,←'Content-Type: multipart/mixed; boundary="BAD"',CRLF,CRLF
+      raw←hdr,'--BAD',CRLF,'Content-Type: text/plain; charset=utf-8',CRLF,CRLF
+      raw,←'This multipart is missing its terminator.',CRLF
+      ⍝ NOTE: deliberately no closing '--BAD--\r\n'
+      p←Drop raw
+    ∇
+
+    ∇ m←MakeBounceNdr(list_addr originally_to);body
+      :Access public
+      ⍝ Minimal RFC 3464-ish DSN. Enough structure for simple NDR regex matching.
+      body←'This is an automatically generated Delivery Status Notification.',(⎕UCS 10 10)
+      body,←'Final-Recipient: rfc822; ',originally_to,⎕UCS 10
+      body,←'Action: failed',⎕UCS 10
+      body,←'Status: 5.1.1',⎕UCS 10
+      m←MakeMail 'mailer-daemon@example.invalid' list_addr 'Undelivered Mail Returned to Sender' body ''
+    ∇
+
+    ∇ m←MakeNonUtf8Subject(from_ to_ latin1_subject)
+      :Access public
+      ⍝ Subject stored with ISO-8859-1 encoded-word. MimeKit will emit
+      ⍝ "=?ISO-8859-1?Q?…?=" when the header is read back out.
+      m←MakeMail from_ to_ 'placeholder' 'body' ''
+      m.Headers.Replace HeaderId.Subject(System.Text.Encoding.GetEncoding 28591)latin1_subject
+    ∇
+
+    ⍝ ──────────── private helpers ──────────────────────────────────────────
+
+    ∇ p←NextPath;ts;fmt
+      counter+←1
+      fmt←{'0'∘,⍣(⍺>≢⍵)⊢⍵}
+      ts←(4 fmt⍕1⊃⎕TS),(2 fmt⍕2⊃⎕TS),(2 fmt⍕3⊃⎕TS)
+      ts,←'_',(2 fmt⍕4⊃⎕TS),(2 fmt⍕5⊃⎕TS),(2 fmt⍕6⊃⎕TS)
+      ts,←'_',(3 fmt⍕7⊃⎕TS)
+      p←repeat_dir,prefix_,'_',ts,'_',(4 fmt⍕counter),'.eml'
+    ∇
+
+    ∇ m←GenMessageId from_;dom
+      ⍝ Returns the bare ID (no angle brackets). MimeMessage.MessageId setter
+      ⍝ accepts both forms and always writes out "<id>"; the malformed-MIME raw
+      ⍝ builder adds its own brackets.
+      dom←(1+from_⍳'@')↓from_
+      :If 0=≢dom ⋄ dom←'test.alisia' ⋄ :EndIf
+      m←(⍕2⊃⎕AI),'.',(⍕?2*31),'.th@',dom
+    ∇
+
+    ∇ s←MailboxToString addrs;mbx
+      ⍝ Given a MimeKit.InternetAddressList, return the first mailbox's address.
+      mbx←⊃addrs.Mailboxes
+      s←mbx.Address
+    ∇
+
+    ∇ r←QuotedText(new_text parent);pt
+      ⍝ new_text followed by a German "Am … schrieb …:" line and the parent text
+      ⍝ with "> " prefix on every line. Empty new_text → empty result.
+      r←new_text
+      :If 0=≢new_text ⋄ →0 ⋄ :EndIf
+      pt←GetTextPart parent
+      :If 0=≢pt ⋄ →0 ⋄ :EndIf
+      r,←⎕UCS 10 10
+      r,←'Am ',(⍕parent.Date),' schrieb ',(MailboxToString parent.From),':',⎕UCS 10
+      r,←'> ',((⎕UCS 10)⎕R((⎕UCS 10),'> ')⍠'Mode' 'D')pt
+    ∇
+
+    ∇ r←QuotedHtml(new_html parent);ph
+      ⍝ new_html, then parent's html wrapped in a gmail-style blockquote.
+      ⍝ Empty new_html → empty (signals MakeMail to skip the html part).
+      r←''
+      :If 0=≢new_html ⋄ →0 ⋄ :EndIf
+      ph←GetHtmlPart parent
+      r←new_html
+      :If 0<≢ph
+          r,←'<br><blockquote class="gmail_quote" style="border-left:1px solid #ccc;padding-left:8px">',ph,'</blockquote>'
+      :EndIf
+    ∇
+
+    ∇ t←GetTextPart m;part
+      t←''
+      :For part :In m.BodyParts
+          :If part{6::0 ⋄ ⍺⍎⍵}'IsPlain' ⋄ t←part.Text ⋄ →0 ⋄ :EndIf
+      :EndFor
+    ∇
+
+    ∇ h←GetHtmlPart m;part
+      h←''
+      :For part :In m.BodyParts
+          :If part{6::0 ⋄ ⍺⍎⍵}'IsHtml' ⋄ h←part.Text ⋄ →0 ⋄ :EndIf
+      :EndFor
+    ∇
+
+    CRLF←⎕UCS 13 10
+
+:EndClass

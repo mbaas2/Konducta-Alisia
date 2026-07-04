@@ -279,8 +279,8 @@
                       tit←⍙'subscribe2_tit'cfg.list_brand cfg.##.handler_cfg.list_name
                   :EndIf
                   secret←1⊃160⌶'ALISIA_PROD_MAILPSWD'
-                  ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',ns.email,'"&s="CONFIRM ',ns.token,'"'
-                  auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
+                  auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ConfirmSigBase 'Alisia' cfg.##.handler_cfg.id ns.email('CONFIRM ',ns.token)
+                  ju←'confirm?h="Alisia"&c="',cfg.##.handler_cfg.id,'"&e="',(URLEncode ns.email),'"&s="CONFIRM ',(URLEncode ns.token),'"'
                   ju←#.JARVIS_URL,ju,'&a="',auth,'"'
                   purl←PrivacyURL
                   :If 0<≢purl←PrivacyURL
@@ -1933,6 +1933,35 @@
       :EndIf
     ∇
 
+    ∇ r←URLEncode s;safe;hex;c;b
+    ⍝ Percent-encode ⍵ for safe inclusion in a URL query value (RFC 3986 unreserved chars pass through).
+    ⍝ Needed because Jarvis's URLDecode treats a literal '+' as an encoded space, which silently
+    ⍝ corrupts e.g. Gmail "+"-tagged addresses unless '+' (and other reserved chars) are escaped here.
+      :Access public
+      hex←'0123456789ABCDEF'
+      safe←⎕D,⎕A,(⎕C⎕A),'-_.~@'
+      r←''
+      :For c :In s
+          :If c∊safe
+              r,←c
+          :Else
+              :For b :In 'UTF-8'⎕UCS c
+                  r,←'%',hex[1+⌊b÷16],hex[1+16|b]
+              :EndFor
+          :EndIf
+      :EndFor
+    ∇
+
+    ∇ r←ConfirmSigBase args;h;c;email;subj;sep
+    ⍝ Canonical string used to compute/verify the confirm-link HMAC.
+    ⍝ Built from the decoded field values rather than the URL/query-string form, so that
+    ⍝ percent-encoding done for transport can never desync sender and verifier.
+      :Access public
+      (h c email subj)←args
+      sep←⎕UCS 0
+      r←h,sep,c,sep,email,sep,subj
+    ∇
+
     ∇ s←StatusSecret
       :Access public
       s←''
@@ -1952,26 +1981,26 @@
     ∇
 
 ⍝─── Jarvis Endpoints
-    ∇ R←req confirm arg;secret;ju;auth;r;msg
+    ∇ R←req confirm arg;secret;auth;r;msg;h;c;email;subj
       :Access public
       r←arg
       R←⍙'confirm_failed'
       secret←1⊃160⌶'ALISIA_PROD_MAILPSWD'
-      auth←ju←'N/A'
+      auth←'N/A'
       :Trap 6
-          ju←'confirm?h=',r.h,'&c=',r.c,'&e=',r.e,'&s=',r.s
-          auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ju
+          h←Unq r.h ⋄ c←Unq r.c ⋄ email←Unq r.e ⋄ subj←Unq r.s
+          auth←,#.Hash.hex secret #.Hash.Hmac_Sha256 ⎕UCS'UTF-8'⎕UCS ConfirmSigBase h c email subj
       :EndTrap
-      :If auth≡1↓¯1↓r.a   ⍝ drop " from auth string
+      :If auth≡Unq r.a
           msg←⎕NS''
-          msg.sender←1↓¯1↓r.e    ⍝ strip quotes: "email" → email
-          msg.subject←1↓¯1↓r.s   ⍝ strip quotes: "CONFIRM token" → CONFIRM token
+          msg.sender←email
+          msg.subject←subj
           msg.headers←0 2⍴''
           r←1 AddSubscriber msg   ⍝ opts=1: confirmation mode
-          'INFO' 'ALISIA'Log'Confirmation webhook: ',(1↓¯1↓r.e),' rc=',⍕R
+          'INFO' 'ALISIA'Log'Confirmation webhook: ',email,' rc=',⍕R
           R←⍙'confirm_ok'
       :Else
-          'WARN' 'ALISIA'Log'Confirmation failed for email: ',r.e,' with details ',(⎕JSON r),', ju="',ju,'", auth="',auth,'"'
+          'WARN' 'ALISIA'Log'Confirmation failed for email: ',({6::'<missing>' ⋄ Unq r.e}0),' with details ',(⎕JSON r),', auth="',auth,'"'
       :EndIf
       req.SetContentType'text/html; charset=utf-8'
       ⎕←R
