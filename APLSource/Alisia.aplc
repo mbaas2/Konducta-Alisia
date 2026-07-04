@@ -1996,7 +1996,7 @@
           msg.sender←email
           msg.subject←subj
           msg.headers←0 2⍴''
-          r←1 AddSubscriber msg   ⍝ opts=1: confirmation mode
+          r←2 AddSubscriber msg   ⍝ opts=2: sets bit 1 ("mode"), i.e. confirmation mode — opts is a bit *position* mask, not the mode number itself
           'INFO' 'ALISIA'Log'Confirmation webhook: ',email,' rc=',⍕R
           R←⍙'confirm_ok'
       :Else
