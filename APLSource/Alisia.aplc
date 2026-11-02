@@ -1595,6 +1595,14 @@
           :EndIf
       :EndIf
      
+      ⍝ No text or html part at all (e.g. attachment-only mail) → add an empty plain part,
+      ⍝ so the mail still gets our header and footer (UNSUBSCRIBE hint, privacy link)
+      :If (textPart≡⎕NULL)∧htmlPart≡⎕NULL
+          textPart←⎕NEW MimeKit.TextPart(⊂'plain')
+          textPart.ContentType.Charset←'utf-8'
+          textPart.Text←''
+      :EndIf
+     
             ⍝ Build new MIME structure with MimeKit
       alternative←⎕NEW MimeKit.Multipart(⊂'alternative')
      
